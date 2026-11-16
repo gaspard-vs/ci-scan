@@ -1,0 +1,7 @@
+{
+  "name": "ci-scan",
+  "private": true,
+  "scripts": {
+    "docs:dev": "minidoc docs"
+  }
+}
