@@ -1,0 +1,47 @@
+# The scan that other repositories call. It reads the code of the pull
+# request and never runs it.
+name: scan
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  # ghcr.io/gitleaks/gitleaks:v8.30.1
+  GITLEAKS: ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: target
+          persist-credentials: false
+
+      # The container can write nowhere: the code is mounted read-only, its
+      # own file system is read-only, and the result leaves on the standard
+      # output.
+      - name: Scan
+        run: |
+          docker run --rm --network none --read-only \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" \
+            -v "$PWD/target:/repo:ro" \
+            "$GITLEAKS" dir /repo \
+            --no-banner --exit-code 0 \
+            --report-format sarif --report-path - > "$RUNNER_TEMP/gitleaks.sarif"
+
+      - name: Decide
+        run: |
+          found=$(jq '[.runs[].results[]] | length' "$RUNNER_TEMP/gitleaks.sarif")
+          jq -r '.runs[].results[] | .locations[0].physicalLocation as $l
+            | "::error file=\($l.artifactLocation.uri | ltrimstr("/repo/")),line=\($l.region.startLine)::\(.ruleId)"' \
+            "$RUNNER_TEMP/gitleaks.sarif"
+          echo "$found finding(s)"
+          [ "$found" = "0" ]

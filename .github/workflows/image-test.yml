@@ -22,17 +22,18 @@ jobs:
         with:
           persist-credentials: false
 
+      # Same command as scan.yml: the container can write nowhere.
       - name: Run the image on each fixture
         run: |
           mkdir -p out
           for fixture in secret clean; do
-            docker run --rm --network none \
+            docker run --rm --network none --read-only \
+              --cap-drop ALL --security-opt no-new-privileges \
               --user "$(id -u):$(id -g)" \
               -v "$PWD/fixtures/$fixture:/repo:ro" \
-              -v "$PWD/out:/out" \
               "$GITLEAKS" dir /repo \
               --no-banner --exit-code 0 \
-              --report-format sarif --report-path "/out/$fixture.sarif"
+              --report-format sarif --report-path - > "out/$fixture.sarif"
           done
 
       - name: Check the results
