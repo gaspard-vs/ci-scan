@@ -14,7 +14,7 @@ Exemple : le dépôt `gaspard-vs/ci-scan-test`.
 
 Le scan lit le code, sans jamais l'exécuter ni le modifier. L'outil tourne dans un conteneur qui ne peut écrire nulle part et qui n'a pas de réseau.
 
-L'appel utilise toujours la version du fichier qui est sur `main`. Une demande de fusion ne peut donc pas modifier son propre contrôle.
+L'appel utilise toujours la version du fichier qui est sur `main`. Une demande de fusion ne peut donc pas modifier son propre contrôle. Le scan bloque aussi toute demande de fusion qui modifie ou supprime le fichier d'appel.
 
 ## Où en est-on
 
@@ -144,7 +144,9 @@ Enregistrer avec **Create**.
 | Envoi direct sur `main` | Sur `main`, un commit, puis `git push` | Refusé par GitHub. |
 | Demande de fusion propre | Celle de l'étape 3 | Scan conforme. Fusion possible. |
 | Demande de fusion avec un faux secret | Une branche avec une fausse clé dans un fichier | Scan bloqué. Bouton de fusion inactif. |
-| Demande de fusion qui supprime l'appel | Une branche sans `.github/workflows/ci-scan.yml` | Le scan tourne quand même, avec la version de `main`. |
+| Demande de fusion qui supprime ou modifie l'appel | Une branche sans `.github/workflows/ci-scan.yml` | Le scan tourne quand même, avec la version de `main`. Scan bloqué. Bouton de fusion inactif. |
+
+![Une demande de fusion qui supprime l'appel : contrôle en échec, bouton de fusion inactif](images/05-call-removed-blocked.png)
 
 Le premier essai est le plus important : s'il passe, la protection n'est pas appliquée (voir « Limites »).
 
@@ -154,6 +156,7 @@ Le premier essai est le plus important : s'il passe, la protection n'est pas app
 | --- | --- | --- |
 | Sur un compte personnel gratuit, GitHub peut ne pas appliquer la protection d'un dépôt privé. | La règle existe, mais elle ne bloque rien. | Faire l'essai « envoi direct » de l'étape 5. S'il passe : compte GitHub Pro, ou dépôt public. |
 | L'administrateur du dépôt peut désactiver la règle. | Il peut passer outre un blocage. | Voulu : c'est la seule voie hors correction. |
-| Une demande de fusion peut modifier le fichier d'appel. Elle est scannée, puis le fichier modifié arrive sur `main`. | Les demandes suivantes peuvent échapper au scan. | Relire toute modification de `.github/`. Voir ci-dessous. |
+| Le fichier d'appel ne change plus par une demande de fusion. | Pour le modifier, l'administrateur désactive la règle un instant. | Voulu. |
+| Une demande de fusion peut ajouter un second fichier dans `.github/workflows/`, qui imite le nom du contrôle. | Un faux contrôle conforme peut s'afficher à côté du vrai. | Relire toute modification de `.github/`. Voir ci-dessous. |
 
 **Pour fermer la dernière limite :** placer les dépôts dans une organisation GitHub. L'organisation impose alors le scan elle-même, et le fichier d'appel dans le dépôt disparaît. Le plan GitHub nécessaire est à vérifier.
