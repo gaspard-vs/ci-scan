@@ -1,0 +1,13 @@
+# The rules of CI scan for Gitleaks: the default rules, and nothing from the
+# scanned repository.
+#
+# Gitleaks reads `.gitleaks.toml` and `.gitleaksignore` at the root of the
+# folder that it scans, and obeys `gitleaks:allow` comments. Three things
+# stop that:
+#   - `--config` points here, so `.gitleaks.toml` of the target is not read;
+#   - `--ignore-gitleaks-allow` removes the effect of the comments;
+#   - the stage scans `/scan`, one level above the target (`/scan/repo`), so
+#     `.gitleaksignore` of the target is not at the root. It is scanned as
+#     an ordinary file.
+[extend]
+useDefault = true

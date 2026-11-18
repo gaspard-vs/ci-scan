@@ -1,7 +1,13 @@
 {
   "name": "ci-scan",
   "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
+    "scan": "node runner/cli.mjs",
+    "test": "node --test \"runner/test/*.test.mjs\"",
     "docs:dev": "minidoc docs"
   }
 }

@@ -1,0 +1,6 @@
+{
+  "id": "detection",
+  "control": "Détection",
+  "build": true,
+  "args": ["/scan/repo"]
+}

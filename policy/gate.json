@@ -1,0 +1,4 @@
+{
+  "block": ["critical", "high"],
+  "stageTimeoutSeconds": 600
+}

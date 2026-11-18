@@ -6,7 +6,7 @@ Tous sont des logiciels libres, connus et maintenus.
 
 | Contrôle | Outil | Pourquoi lui | Rapide |
 | --- | --- | --- | --- |
-| Recensement des technologies | go-enry | Le moteur de détection de langages de GitHub. |  |
+| Détection des technologies | go-enry | Le moteur de détection de langages de GitHub. |  |
 | Inventaire des composants | Syft | Produit la liste complète (SBOM) dans un format standard. |  |
 | Secrets | Gitleaks | Rapide. Lit aussi tout l'historique git. | Oui |
 | Secrets | TruffleHog | Vérifie si le secret trouvé est encore actif. |  |

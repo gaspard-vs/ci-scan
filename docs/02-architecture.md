@@ -2,7 +2,7 @@
 
 ## Le déroulement
 
-1. **Recensement.** CI scan liste les fichiers et détecte les technologies.
+1. **Détection.** CI scan liste les fichiers et détecte les technologies.
 2. **Scan commun.** Les contrôles valables pour tout dépôt.
 3. **Scan par technologie.** Les contrôles propres à chaque technologie détectée.
 4. **Rapport.** Tous les résultats réunis, puis la décision : conforme ou bloqué.
@@ -51,8 +51,11 @@ Chaque dossier contient une suite d'étapes. Une étape, c'est un outil.
 
 Toutes les étapes suivent **le même contrat** :
 
-- elle reçoit un dépôt ;
-- elle rend ses résultats dans un format standard (SARIF).
+- elle reçoit un dépôt, en lecture seule ;
+- elle rend ses résultats dans un format standard (SARIF) ;
+- elle déclare son image, à version figée, et la gravité de ses résultats.
+
+Une étape qui échoue, ou dont le résultat est illisible, bloque le scan.
 
 Le moteur ne connaît aucun outil. Il lance les étapes et réunit les résultats.
 

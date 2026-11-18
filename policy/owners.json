@@ -1,0 +1,12 @@
+{
+  "inert": {
+    "languages": ["Markdown", "Text"],
+    "mimes": ["image/png", "image/jpeg", "image/gif", "image/webp", "image/x-icon"]
+  },
+  "configuration": {
+    "languages": [
+      "YAML", "JSON", "TOML", "INI", "Java Properties",
+      "Ignore List", "Git Attributes", "EditorConfig"
+    ]
+  }
+}

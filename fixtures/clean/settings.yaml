@@ -1,0 +1,3 @@
+service:
+  url: https://example.invalid/api
+  timeout: 30

@@ -2,7 +2,18 @@
 
 Un scanner de sécurité unique pour tous les projets, en particulier ceux écrits, migrés ou mis à jour par une IA.
 
-**Statut : proposition à valider. Rien n'est construit.**
+## Où en est-on
+
+| Partie | État |
+| --- | --- |
+| Le moteur : une commande, un verdict | Construit |
+| La détection : chaque fichier a un propriétaire | Construit |
+| La porte fermée : ce qui n'est pas contrôlé bloque | Construit |
+| Secrets (Gitleaks) | Construit |
+| Le scan obligatoire sur GitHub ([mise en place](setup.html)) | Construit, sur un dépôt d'essai |
+| Les autres contrôles | À construire |
+| Java et JavaScript | À construire. D'ici là, leur code bloque : « technologie non couverte ». |
+| Le rapport d'une page pour le responsable | À construire. D'ici là, un rapport en texte. |
 
 ## Le besoin
 

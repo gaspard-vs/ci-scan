@@ -18,12 +18,13 @@ Aucun projet n'échappe au scan. Aucune technologie non plus.
 1. **CI scan détecte les technologies lui-même.** Il reconnaît Java, JavaScript, etc. par les fichiers présents. Le projet commence à utiliser Java : Java est scanné.
 2. **Chaque fichier a un propriétaire.** Soit une technologie connue, soit un type sans risque (texte, image). Cette liste appartient à CI scan.
 3. **Une technologie inconnue bloque.** Un projet ajoute du Python et CI scan ne connaît pas Python : le scan échoue avec « technologie non couverte ». Quelqu'un ajoute alors Python à CI scan.
-4. **CI scan ne lit aucun réglage dans le projet.** Le projet ne peut pas s'accorder une exception.
-5. **Les commentaires qui font taire un outil sont sans effet.** Ils sont signalés dans le rapport.
+4. **CI scan ne lit aucun réglage dans le projet.** Le projet ne peut pas s'accorder une exception. Les fichiers de réglage d'un outil, placés dans le projet, sont sans effet.
+5. **Les commentaires qui font taire un outil sont sans effet.** Ils seront signalés dans le rapport (à construire).
 6. **CI scan va chercher le code.** Il lit la liste des dépôts et les scanne, depuis GitHub d'abord. Le projet ne peut pas retirer le scan de sa propre chaîne.
 
 ## En plus
 
-- Une archive ou un binaire d'origine inconnue est signalé : on ne cache pas du code dans un zip.
+- Une archive ou un binaire d'origine inconnue bloque : on ne cache pas du code dans un zip.
+- Un fichier est reconnu par son contenu, pas seulement par son nom. Les dossiers cachés ou « de tiers » sont lus comme les autres.
 - Une IA qui travaille dans un projet n'a aucun accès en écriture à CI scan.
 - CI scan lit un seul fichier du projet, et seulement pour donner un conseil : la liste de ce que le projet lance avant un commit. Cela ne change ni ce qui est scanné, ni la décision.
