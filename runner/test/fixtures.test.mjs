@@ -105,3 +105,60 @@ test('broken-stage: a stage that gives no result blocks', { skip }, async () => 
   assert.deepEqual(blocking(found), ['undefined: step-failed'])
   assert.deepEqual(found.steps, [{ id: 'broken', control: 'Essai', count: null }])
 })
+
+// The results of the OSV stages: file, rule (package and flaw) and gravity.
+// The database changes each hour: a test asks for one known flaw, not for
+// the whole list.
+const osv = (found) =>
+  found.findings
+    .filter((finding) => finding.source.startsWith('osv'))
+    .map((finding) => `${finding.file} ${finding.title} ${finding.gravity}`)
+
+const LODASH = 'package-lock.json lodash@4.17.15 CVE-2020-8203 high'
+
+test('vulnerable-npm: bloqué by a known flaw', { skip }, async () => {
+  const found = await run(fixture('vulnerable-npm'))
+  assert.equal(found.verdict, 'bloqué')
+  assert.ok(osv(found).includes(LODASH), osv(found).join('\n'))
+  assert.deepEqual(found.steps.find((step) => step.id === 'osv').data.map((data) => data.file), [
+    'osv-scalibr/npm/all.zip',
+  ])
+})
+
+test('malicious-npm: bloqué by a malicious package, critical', { skip }, async () => {
+  const found = await run(fixture('malicious-npm'))
+  assert.ok(osv(found).includes('package-lock.json flatmap-stream@0.1.1 MAL-2025-20690 critical'), osv(found).join('\n'))
+})
+
+test('osv-silenced: the settings and the ignore file of the target have no effect', { skip }, async () => {
+  const found = await run(fixture('osv-silenced'))
+  assert.ok(osv(found).includes(LODASH), osv(found).join('\n'))
+})
+
+// The requests that the helper of the Maven stage saw.
+const requests = (found) => found.sarif.runs.flatMap((run) => run.properties?.['ci-scan/requests'] ?? [])
+
+test('vulnerable-maven: bloqué by Log4Shell, through the helper only', { skip }, async () => {
+  const found = await run(fixture('vulnerable-maven'))
+  assert.ok(
+    osv(found).includes('pom.xml org.apache.logging.log4j:log4j-core@2.14.1 CVE-2021-44228 critical'),
+    osv(found).join('\n'),
+  )
+  const step = found.steps.find((entry) => entry.id === 'osv-maven')
+  assert.ok(step.requests.total > 0)
+  assert.equal(step.requests.refused, 0)
+})
+
+test('maven-resolved: the parent gives the version, and the internal package never leaves', { skip }, async () => {
+  const found = await run(fixture('maven-resolved'))
+  // snakeyaml has no version in pom.xml: only the parent gives it.
+  assert.ok(osv(found).some((line) => line.startsWith('pom.xml org.yaml:snakeyaml@1.28 ')), osv(found).join('\n'))
+  assert.deepEqual(
+    found.notes.map((note) => `${note.file}: ${note.title}`),
+    ['pom.xml: Paquet interne, non vérifié ici : ch.vs.example:internal-lib@1.0'],
+  )
+  const seen = requests(found)
+  assert.ok(seen.some((request) => request.action === 'internal' && request.path.includes('/ch/vs/')))
+  assert.deepEqual(seen.filter((request) => request.action !== 'internal' && request.path.includes('/ch/vs/')), [])
+  assert.deepEqual(seen.filter((request) => request.action === 'refused'), [])
+})

@@ -1,0 +1,27 @@
+{
+  "id": "osv",
+  "control": "Vulnérabilités connues",
+  "build": true,
+  "version": "v2.7.1",
+  "tmp": true,
+  "env": {
+    "OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY": "/data"
+  },
+  "data": [
+    { "file": "osv-scalibr/npm/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/npm/all.zip", "when": ["package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock"] },
+    { "file": "osv-scalibr/PyPI/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/PyPI/all.zip", "when": ["requirements*.txt", "poetry.lock", "Pipfile.lock", "pdm.lock", "uv.lock", "pylock.toml"] },
+    { "file": "osv-scalibr/Maven/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/Maven/all.zip", "when": ["gradle.lockfile", "buildscript-gradle.lockfile", "verification-metadata.xml"] },
+    { "file": "osv-scalibr/Go/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/Go/all.zip", "when": ["go.mod"] },
+    { "file": "osv-scalibr/crates.io/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/crates.io/all.zip", "when": ["Cargo.lock"] },
+    { "file": "osv-scalibr/RubyGems/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/RubyGems/all.zip", "when": ["Gemfile.lock", "gems.locked"] },
+    { "file": "osv-scalibr/Packagist/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/Packagist/all.zip", "when": ["composer.lock"] },
+    { "file": "osv-scalibr/NuGet/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/NuGet/all.zip", "when": ["packages.lock.json"] },
+    { "file": "osv-scalibr/Pub/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/Pub/all.zip", "when": ["pubspec.lock"] },
+    { "file": "osv-scalibr/Hex/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/Hex/all.zip", "when": ["mix.lock"] },
+    { "file": "osv-scalibr/CRAN/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/CRAN/all.zip", "when": ["renv.lock"] }
+  ],
+  "args": [
+    "lockfiles"
+  ],
+  "gravity": "high"
+}

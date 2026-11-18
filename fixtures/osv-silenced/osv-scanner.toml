@@ -1,0 +1,9 @@
+# The target tries to silence OSV-Scanner. CI scan must ignore this file.
+[[IgnoredVulns]]
+id = "GHSA-p6mc-m468-83gw"
+reason = "Not used"
+
+[[PackageOverrides]]
+name = "lodash"
+ignore = true
+reason = "Not used"

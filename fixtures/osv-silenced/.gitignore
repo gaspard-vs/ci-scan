@@ -1,0 +1,2 @@
+# The target tries to hide its lock file.
+package-lock.json

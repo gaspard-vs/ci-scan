@@ -1,12 +1,14 @@
 // Starts a step in its container. This is the only file that knows Docker.
 import { spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
-// Where a step finds the repository and its own folder, both read-only.
+// Where a step finds the repository, its own folder and its data, all
+// read-only.
 export const REPO_MOUNT = '/scan/repo'
 export const STAGE_MOUNT = '/stage'
+export const DATA_MOUNT = '/data'
 
 function exec(command, args, { timeout } = {}) {
   return new Promise((resolve) => {
@@ -55,38 +57,124 @@ async function folderHash(dir) {
 
 const built = new Map()
 
-// The image of a step: fixed by digest, or built from the folder of the step.
-async function imageOf(step) {
-  if (step.image) return { image: step.image }
-  if (built.has(step.dir)) return built.get(step.dir)
-  const image = `ci-scan-${step.id}:${await folderHash(step.dir)}`
+// The image built from a folder with a Dockerfile. Its name changes when a
+// file of the folder changes.
+export async function buildImage(dir, name) {
+  if (built.has(dir)) return built.get(dir)
+  const image = `ci-scan-${name}:${await folderHash(dir)}`
   let result = { image }
   const known = await exec('docker', ['image', 'inspect', image])
   if (known.code !== 0) {
-    const build = await exec('docker', ['build', '--quiet', '--tag', image, step.dir])
+    const build = await exec('docker', ['build', '--quiet', '--tag', image, dir])
     if (build.code !== 0) result = { error: `docker build: ${build.stderr.trim()}` }
   }
-  built.set(step.dir, result)
+  built.set(dir, result)
   return result
+}
+
+// The image of a step: fixed by digest, or built from the folder of the
+// step, or from the folder that "build" names.
+function imageOf(step) {
+  if (step.image) return { image: step.image }
+  if (step.build === true) return buildImage(step.dir, step.id)
+  const dir = path.resolve(step.dir, step.build)
+  return buildImage(dir, path.basename(dir))
+}
+
+const PROXY_ALIAS = 'proxy'
+const PROXY_READY_MS = 15_000
+
+// The options that close a container: no write (except an empty /tmp in
+// memory, if asked), no privilege, the user of the runner.
+function closed(step) {
+  const args = [
+    '--read-only',
+    '--cap-drop', 'ALL',
+    '--security-opt', 'no-new-privileges',
+    '--user', `${process.getuid()}:${process.getgid()}`,
+  ]
+  if (step.tmp) args.push('--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=1g')
+  return args
+}
+
+// Starts the proxy of a step on a new network with no route out. The proxy
+// itself has the network. Gives the network, the container and a function
+// that stops both and gives the lines of the proxy.
+async function startProxy(step) {
+  const { image, error } = await buildImage(path.resolve(step.dir, step.proxy.build), `${step.id}-proxy`)
+  if (error) return { error }
+  const name = `ci-scan-${step.id}-${randomBytes(4).toString('hex')}`
+  const stop = async () => {
+    const logs = await exec('docker', ['logs', name])
+    await exec('docker', ['rm', '--force', name])
+    await exec('docker', ['network', 'rm', name])
+    return logs.stdout
+  }
+  const network = await exec('docker', ['network', 'create', '--internal', name])
+  if (network.code !== 0) return { error: `docker network: ${network.stderr.trim()}` }
+  let failed = await exec('docker', ['run', '--detach', '--name', name, ...closed({}), image, ...step.proxy.args])
+  if (failed.code === 0) failed = await exec('docker', ['network', 'connect', '--alias', PROXY_ALIAS, name, name])
+  if (failed.code !== 0) {
+    await stop()
+    return { error: `proxy: ${failed.stderr.trim()}` }
+  }
+  // The proxy prints {"ready": …} when it listens.
+  const until = Date.now() + PROXY_READY_MS
+  for (;;) {
+    const logs = await exec('docker', ['logs', name])
+    if (logs.stdout.includes('"ready"')) break
+    if (Date.now() > until) {
+      await stop()
+      return { error: `proxy: not ready after ${PROXY_READY_MS / 1000} s ${logs.stderr.trim()}` }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  return { network: name, stop }
+}
+
+// The requests that the proxy saw: one JSON line each.
+function requestsOf(stdout) {
+  const requests = []
+  for (const line of stdout.split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const entry = JSON.parse(line)
+      if (entry && typeof entry.path === 'string') requests.push(entry)
+    } catch {
+      requests.push({ path: line, action: 'unreadable' })
+    }
+  }
+  return requests
 }
 
 // Runs one step on one repository. The container cannot write anywhere
 // (except an empty /tmp in memory, if the step asks for it), has no
-// privilege and, unless the step asks for it, has no network. The result
-// leaves on the standard output.
-export async function launch(step, repo, { timeout } = {}) {
+// privilege and has no network: unless the step asks for the network, or
+// for a proxy, its only way out. The result leaves on the standard output.
+export async function launch(step, repo, { timeout, dataDir } = {}) {
   const { image, error } = await imageOf(step)
   if (error) return { code: null, stdout: '', stderr: error }
   const args = [
-    'run', '--rm', '--read-only',
-    '--cap-drop', 'ALL',
-    '--security-opt', 'no-new-privileges',
-    '--user', `${process.getuid()}:${process.getgid()}`,
+    'run', '--rm', ...closed(step),
     '--volume', `${repo}:${REPO_MOUNT}:ro`,
     '--volume', `${step.dir}:${STAGE_MOUNT}:ro`,
   ]
-  if (!step.network) args.push('--network', 'none')
-  if (step.tmp) args.push('--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=1g')
-  args.push(image, ...step.args)
-  return exec('docker', args, { timeout })
+  if (dataDir) args.push('--volume', `${dataDir}:${DATA_MOUNT}:ro`)
+  for (const [name, value] of Object.entries(step.env ?? {})) args.push('--env', `${name}=${value}`)
+  if (!step.proxy) {
+    if (!step.network) args.push('--network', 'none')
+    args.push(image, ...step.args)
+    return exec('docker', args, { timeout })
+  }
+  const proxy = await startProxy(step)
+  if (proxy.error) return { code: null, stdout: '', stderr: proxy.error }
+  let result
+  try {
+    args.push('--network', proxy.network, image, ...step.args)
+    result = await exec('docker', args, { timeout })
+  } finally {
+    const lines = await proxy.stop()
+    if (result) result.requests = requestsOf(lines)
+  }
+  return result
 }
