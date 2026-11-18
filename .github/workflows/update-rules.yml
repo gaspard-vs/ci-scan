@@ -1,9 +1,7 @@
-# Each month, copies the last open GitLab rules into the Opengrep stage and
-# opens a pull request. A person reads it and merges it: nothing changes in
-# the scan before that.
-#
-# Needs the setting "Allow GitHub Actions to create and approve pull
-# requests" (Settings > Actions > General).
+# Each month, checks if GitLab has new SAST rules. If so, it opens an issue
+# (or updates the open one). It only reads: it does not download the rules
+# and cannot change the code of CI scan. A person copies the rules with
+# `update-rules.sh` and opens the pull request.
 name: update-rules
 
 on:
@@ -12,79 +10,61 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  issues: write
 
 env:
-  BRANCH: update-gitlab-rules
+  REPOSITORY: https://gitlab.com/gitlab-org/security-products/sast-rules
+  TITLE: New GitLab rules
 
 jobs:
-  update:
+  check:
     runs-on: ubuntu-24.04
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      # actions/setup-node v7.1.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: 22
+          persist-credentials: false
+          sparse-checkout: common/20-code-opengrep/gitlab/SOURCE.json
+          sparse-checkout-cone-mode: false
 
-      - name: Copy the last GitLab rules
-        id: copy
-        run: |
-          common/20-code-opengrep/update-rules.sh 2> "$RUNNER_TEMP/warnings.txt"
-          cat "$RUNNER_TEMP/warnings.txt" >&2
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "The rules did not change."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      # A pull request made with this token does not start the test
-      # workflow, so the tests run here. A failure is written in the pull
-      # request: a person fixes it before the merge.
-      - name: Test
-        id: test
-        if: steps.copy.outputs.changed == 'true'
-        continue-on-error: true
-        run: npm test
-
-      - name: Open the pull request
-        if: steps.copy.outputs.changed == 'true'
+      - name: Compare the commits, and open or update the issue
         env:
           GH_TOKEN: ${{ github.token }}
-          TESTS: ${{ steps.test.outcome }}
         run: |
-          commit=$(node -p "require('./common/20-code-opengrep/gitlab/SOURCE.json').commit")
-          date=$(node -p "require('./common/20-code-opengrep/gitlab/SOURCE.json').date")
-          count=$(node -p "require('./common/20-code-opengrep/gitlab/SOURCE.json').rules")
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git switch --create "$BRANCH"
-          git add --all common/20-code-opengrep/gitlab
-          git commit --quiet --message "Update the GitLab rules to ${commit:0:12}"
-          git push --force origin "$BRANCH"
-          {
-            echo "GitLab rules at \`$commit\` ($date): $count rules."
-            echo
-            if [ "$TESTS" = success ]; then
-              echo "The tests pass."
-            else
-              echo "**The tests fail.** Read the run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-              echo "A rule that Opengrep cannot read goes in \`common/20-code-opengrep/gitlab-excluded.txt\`, with the reason."
-            fi
-            if [ -s "$RUNNER_TEMP/warnings.txt" ]; then
-              echo
-              echo '```'
-              cat "$RUNNER_TEMP/warnings.txt"
-              echo '```'
-            fi
-          } > "$RUNNER_TEMP/body.md"
-          title="Update the GitLab rules to ${commit:0:12}"
-          if gh pr view "$BRANCH" --json state --jq .state 2>/dev/null | grep -q OPEN; then
-            gh pr edit "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          ours=$(jq -r .commit common/20-code-opengrep/gitlab/SOURCE.json)
+          theirs=$(git ls-remote "$REPOSITORY.git" HEAD | cut -f1)
+          echo "Our commit: $ours"
+          echo "GitLab:     $theirs"
+          if ! echo "$theirs" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::No commit from GitLab"
+            exit 1
+          fi
+          if [ "$ours" = "$theirs" ]; then
+            echo "The rules are up to date."
+            exit 0
+          fi
+          cat > "$RUNNER_TEMP/body.md" <<EOF
+          GitLab has new SAST rules.
+
+          | | Commit |
+          | --- | --- |
+          | Ours | \`$ours\` |
+          | GitLab | \`$theirs\` |
+
+          The changes: $REPOSITORY/-/compare/$ours...$theirs
+
+          To update, on a workstation:
+
+          1. \`common/20-code-opengrep/update-rules.sh $theirs\`
+          2. \`npm test\`. A rule that Opengrep cannot read goes in \`common/20-code-opengrep/gitlab-excluded.txt\`, with the reason.
+          3. Open a pull request. The owner of CI scan reads it and merges it.
+          EOF
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$TITLE\" in:title" \
+            --json number,title --jq "map(select(.title == \"$TITLE\")) | .[0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+            echo "Updated issue #$number"
           else
-            gh pr create --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
           fi

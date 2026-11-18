@@ -47,7 +47,7 @@ Les contrôles marqués « Rapide » prennent quelques secondes. Le projet peut 
 
 | Règles | Origine | Mise à jour |
 | --- | --- | --- |
-| Règles générales | La partie libre des règles de GitLab (MIT et LGPL). Environ 480 règles, maintenues par GitLab. | Chaque mois, CI scan propose la nouvelle version. Une personne la relit et l'accepte. |
+| Règles générales | La partie libre des règles de GitLab (MIT et LGPL). Environ 480 règles, maintenues par GitLab. | Chaque mois, CI scan signale la nouvelle version. Une personne la copie, la teste et propose le changement. Le responsable de CI scan l'accepte. |
 | Nos règles | Seulement ce que GitLab ne couvre pas, pour un cas réel. | Chaque règle a son test. Une règle sans test est refusée. |
 
 - Le responsable de CI scan accepte chaque changement. Aujourd'hui : Anna. Plus tard : le responsable de la sécurité.

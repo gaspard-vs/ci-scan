@@ -6,7 +6,7 @@ Opengrep reads the code of the target with two sets of rules.
 | --- | --- |
 | `gitlab/` | A copy of the open GitLab SAST rules, at the commit in `gitlab/SOURCE.json`. Do not edit: `update-rules.sh` writes it. |
 | `gitlab-excluded.txt` | The GitLab rules that are not copied, each with its reason. |
-| `update-rules.sh` | Copies the rules again. The workflow `update-rules` runs it each month and opens a pull request. |
+| `update-rules.sh` | Copies the rules again. A person runs it on a workstation and opens a pull request. Each month, the workflow `update-rules` opens an issue when GitLab has new rules. |
 | `rules/` | Our own rules. Each rule `<name>.yml` has its test file `<name>.<ext>`, with `ruleid:` and `ok:` lines. |
 | `Dockerfile` | The image: Debian by digest, the Opengrep binary by its sha256. |
 | `stage.json` | The stage. |
@@ -23,7 +23,7 @@ work":
 - `rules_lgpl_javascript_crypto_rule-node-tls-reject`
 
 A test checks that each rule in `"gravities"` exists. A rename by GitLab
-makes the test fail in the monthly pull request.
+makes the test fail before the pull request of the update.
 
 ## The target cannot silence a rule
 
