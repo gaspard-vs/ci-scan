@@ -22,9 +22,9 @@ L'appel utilise toujours la version du fichier qui est sur `main`. Une demande d
 | --- | --- | --- |
 | 1 | Ouvrir CI scan aux autres dépôts | Fait |
 | 2 | Ajouter l'appel dans le dépôt | Fait |
-| 3 | Ouvrir une première demande de fusion | À faire |
-| 4 | Protéger `main` | À faire |
-| 5 | Vérifier | À faire |
+| 3 | Ouvrir une première demande de fusion | Fait |
+| 4 | Protéger `main` | Fait |
+| 5 | Vérifier | Fait |
 
 L'ordre compte. La protection (étape 4) a besoin du nom du contrôle, et GitHub ne le connaît qu'après un premier scan (étape 3).
 
@@ -149,6 +149,29 @@ Enregistrer avec **Create**.
 ![Une demande de fusion qui supprime l'appel : contrôle en échec, bouton de fusion inactif](images/05-call-removed-blocked.png)
 
 Le premier essai est le plus important : s'il passe, la protection n'est pas appliquée (voir « Limites »).
+
+## Protéger CI scan lui-même
+
+Chaque dépôt appelle le scan qui est sur `main` de `ci-scan`. Une modification de `main` change le scan de tous les projets à la fois. `main` de `ci-scan` est donc protégée, comme celle d'un dépôt scanné.
+
+Sur GitHub, dans `ci-scan` : **Settings › Rules › Rulesets**. La règle s'appelle `protect main`.
+
+| Règle | Détail | Effet |
+| --- | --- | --- |
+| Restrict deletions | | `main` ne peut pas être supprimée. |
+| Block force pushes | | L'historique de `main` ne peut pas être réécrit. |
+| Require a pull request before merging | Required approvals : 0 | Plus aucun envoi direct sur `main`. |
+| Require status checks to pass | `self-test`, source **GitHub Actions**. **Require branches to be up to date before merging** coché. | Fusion refusée tant que les tests de CI scan échouent. |
+| Bypass list | Vide | Personne n'est dispensé. |
+
+`self-test`, c'est CI scan qui se teste lui-même : chaque petit dépôt de test doit donner le verdict attendu. Voir [Architecture](02-architecture.html).
+
+Vérifié le 18 novembre 2026 : GitHub refuse un envoi direct sur `main`, et la demande de fusion n° 2 passe avec `self-test`.
+
+| Limite | Conséquence | Réponse |
+| --- | --- | --- |
+| 0 approbation. | Une personne qui a le droit d'écrire fusionne seule. | Aujourd'hui, une seule personne travaille sur CI scan. Quand le responsable de la sécurité arrive : 1 approbation, et un fichier `CODEOWNERS` qui le désigne. |
+| `self-test` tourne avec la version de la branche. | Une demande de fusion peut modifier ou vider ses propres tests. | Le contrôle arrête une erreur, pas une personne malveillante. Contre elle : la relecture. |
 
 ## Limites
 
