@@ -1,6 +1,6 @@
 # CI scan tests itself: each fixture must give its expected verdict, with the
 # real tool images.
-name: test
+name: self-test
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  self-test:
     runs-on: ubuntu-24.04
     steps:
       # actions/checkout v7.0.1
