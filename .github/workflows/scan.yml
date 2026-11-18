@@ -11,6 +11,8 @@ permissions:
 env:
   # ghcr.io/gitleaks/gitleaks:v8.30.1
   GITLEAKS: ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+  # The file of the calling repository that starts this scan.
+  CALL_FILE: .github/workflows/ci-scan.yml
 
 jobs:
   scan:
@@ -37,11 +39,47 @@ jobs:
             --no-banner --exit-code 0 \
             --report-format sarif --report-path - > "$RUNNER_TEMP/gitleaks.sarif"
 
-      - name: Decide
+      # The call file as it is on the branch that receives the pull request.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        if: github.event.pull_request
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          path: base
+          sparse-checkout: ${{ env.CALL_FILE }}
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # A pull request cannot change or remove the call file. The two
+      # versions are compared as git objects: no file of the pull request is
+      # opened, and a symbolic link does not pass.
+      - name: Guard the call file
+        id: guard
+        if: github.event.pull_request
         run: |
+          entry() { git -C "$1" ls-tree HEAD -- "$CALL_FILE" | cut -f1; }
+          expected=$(entry base)
+          actual=$(entry target)
+          if [ -z "$expected" ]; then
+            echo "::error::The call file $CALL_FILE is not on the base branch"
+            echo "changed=1" >> "$GITHUB_OUTPUT"
+          elif [ -z "$actual" ]; then
+            echo "::error::The pull request removes the call file $CALL_FILE"
+            echo "changed=1" >> "$GITHUB_OUTPUT"
+          elif [ "$actual" != "$expected" ]; then
+            echo "::error file=$CALL_FILE::The pull request changes the call file"
+            echo "changed=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "The call file is the same as on the base branch"
+          fi
+
+      - name: Decide
+        env:
+          CALL_CHANGED: ${{ steps.guard.outputs.changed }}
+        run: |
+          [ -z "$CALL_CHANGED" ] || { echo "The call file is changed"; status=1; }
           found=$(jq '[.runs[].results[]] | length' "$RUNNER_TEMP/gitleaks.sarif")
           jq -r '.runs[].results[] | .locations[0].physicalLocation as $l
             | "::error file=\($l.artifactLocation.uri | ltrimstr("/repo/")),line=\($l.region.startLine)::\(.ruleId)"' \
             "$RUNNER_TEMP/gitleaks.sarif"
           echo "$found finding(s)"
-          [ "$found" = "0" ]
+          [ "$found" = "0" ] && [ -z "$status" ]

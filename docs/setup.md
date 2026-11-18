@@ -10,30 +10,37 @@ Exemple : le dépôt `gaspard-vs/ci-scan-test`.
 | --- | --- | --- |
 | Le scan | `ci-scan` | Contrôle le code. Rend conforme ou bloqué. |
 | L'appel | `ci-scan-test`, un petit fichier | Lance le scan à chaque demande de fusion. |
-| La règle | `ci-scan-test`, réglages GitHub | Refuse toute arrivée sur `main` sans scan conforme. |
+| La protection | `ci-scan-test`, réglages GitHub | Refuse toute arrivée sur `main` sans scan conforme. |
 
 Le scan lit le code, sans jamais l'exécuter ni le modifier. L'outil tourne dans un conteneur qui ne peut écrire nulle part et qui n'a pas de réseau.
 
 L'appel utilise toujours la version du fichier qui est sur `main`. Une demande de fusion ne peut donc pas modifier son propre contrôle.
 
-## Avant de commencer
+## Où en est-on
 
-| Point | État |
-| --- | --- |
-| `ci-scan` et `ci-scan-test` sont sur GitHub, même compte | Fait |
-| `ci-scan` lance une image d'outil sur GitHub | Fait (test `image-test`) |
-| `ci-scan` offre un scan que d'autres dépôts peuvent appeler (`scan.yml`) | **À construire** |
-| Le compte permet les règles sur un dépôt privé | **À vérifier** (voir « Limites ») |
+| Étape | Quoi | État pour `ci-scan-test` |
+| --- | --- | --- |
+| 1 | Ouvrir CI scan aux autres dépôts | Fait |
+| 2 | Ajouter l'appel dans le dépôt | Fait |
+| 3 | Ouvrir une première demande de fusion | À faire |
+| 4 | Protéger `main` | À faire |
+| 5 | Vérifier | À faire |
+
+L'ordre compte. La protection (étape 4) a besoin du nom du contrôle, et GitHub ne le connaît qu'après un premier scan (étape 3).
 
 ## 1. Ouvrir CI scan aux autres dépôts
 
-Dans `ci-scan` : **Settings › Actions › General › Access**.
+Sur GitHub, dans `ci-scan` : **Settings › Actions › General**.
 
-Choisir : **Accessible from repositories owned by the user 'gaspard-vs'**.
+Tout en bas, section **Access**, choisir : **Accessible from repositories owned by the user 'gaspard-vs'**. Puis **Save**.
+
+![Le réglage Access, avec l'option « Accessible from repositories owned by the user 'gaspard-vs' » cochée](images/01-setup-access.png)
+
+Sans ce réglage, l'appel échoue : `ci-scan-test` n'a pas le droit de lire le scan.
 
 ## 2. Ajouter l'appel dans le dépôt
 
-Dans `ci-scan-test`, créer le fichier `.github/workflows/ci-scan.yml` :
+Dans `ci-scan-test`, le fichier `.github/workflows/ci-scan.yml` :
 
 ```yaml
 name: ci-scan
@@ -52,49 +59,100 @@ jobs:
 
 Ce fichier arrive sur `main` par un envoi direct. C'est le dernier : l'étape 4 les interdit.
 
-## 3. Lancer le scan une première fois
+Un envoi sur `main` ne lance rien. Le scan démarre seulement avec une demande de fusion.
 
-Ouvrir une demande de fusion, avec une modification quelconque.
+## 3. Ouvrir une première demande de fusion
 
-Le scan tourne. GitHub connaît maintenant le nom du contrôle : `ci-scan / scan`. Sans ce premier passage, l'étape 4 ne le propose pas.
+### Sur le poste
 
-## 4. Créer la règle sur `main`
+Créer une branche, y faire une modification, l'envoyer :
 
-Dans `ci-scan-test` : **Settings › Rules › Rulesets › New ruleset › New branch ruleset**.
+```sh
+cd ci-scan-test
+git switch -c premier-essai
+echo "Premier essai" > essai.md
+git add essai.md
+git commit -m "Add a first test file"
+git push -u origin premier-essai
+```
 
-| Réglage | Valeur |
+### Sur GitHub
+
+1. Ouvrir `ci-scan-test`. Un bandeau jaune propose **Compare & pull request** : cliquer.
+   Sans bandeau : onglet **Pull requests › New pull request**.
+2. Vérifier les deux branches : **base : `main`**, **compare : `premier-essai`**.
+3. Cliquer **Create pull request**.
+
+### Le résultat
+
+Le scan démarre tout seul. Il apparaît en bas de la demande de fusion, sous le nom `ci-scan / scan`.
+
+| Ce qui s'affiche | Sens |
 | --- | --- |
-| Ruleset name | `main passe par CI scan` |
-| Enforcement status | **Active** |
-| Bypass list | Vide |
-| Target branches | **Include default branch** |
+| Coche verte | Conforme. |
+| Croix rouge | Bloqué. **Details** montre le fichier et la ligne en cause. |
+| Rien après une minute | L'appel n'est pas parti. Voir l'onglet **Actions** ; vérifier l'étape 1. |
 
-Cocher ces règles :
+Noter le nom exact du contrôle. L'étape 4 en a besoin.
+
+Ne pas fusionner tout de suite : cette demande sert aussi à l'étape 5.
+
+## 4. Protéger `main`
+
+Sur GitHub, dans `ci-scan-test` : **Settings › Rules › Rulesets › New ruleset › New branch ruleset**.
+
+### Les réglages généraux
+
+| Réglage | Valeur | Remarque |
+| --- | --- | --- |
+| Ruleset name | `main passe par CI scan` | |
+| Enforcement status | **Active** | Sur « Disabled », la règle ne fait rien. |
+| Bypass list | Vide | Personne n'est dispensé. |
+| Target branches | **Add target › Include default branch** | La branche par défaut est `main`. |
+
+![Les réglages généraux de la règle : active, liste de dispense vide, cible `main`](images/02-ruleset-general.png)
+
+### Les règles à cocher
 
 | Règle | Détail | Effet |
 | --- | --- | --- |
 | Restrict deletions | | `main` ne peut pas être supprimée. |
 | Block force pushes | | L'historique de `main` ne peut pas être réécrit. |
-| Require a pull request before merging | Approbations : 0 | Plus aucun envoi direct sur `main`. |
-| Require status checks to pass | Ajouter `ci-scan / scan`, source **GitHub Actions** | Fusion refusée tant que le scan n'est pas conforme. |
-| | Cocher **Require branches to be up to date before merging** | Le scan porte sur le code tel qu'il sera sur `main`. |
+| Require a pull request before merging | Required approvals : 0 | Plus aucun envoi direct sur `main`. |
+| Require status checks to pass | Voir ci-dessous | Fusion refusée tant que le scan n'est pas conforme. |
+
+![La règle « Require a pull request before merging », avec 0 approbation](images/03-ruleset-pull-request.png)
+
+### Le contrôle exigé
+
+Dans **Require status checks to pass** :
+
+1. Cliquer **Add checks**.
+2. Taper `ci-scan` et choisir `ci-scan / scan`, avec la source **GitHub Actions**.
+3. Cocher **Require branches to be up to date before merging**. Le scan porte alors sur le code tel qu'il sera sur `main`.
+
+Si `ci-scan / scan` n'est pas proposé : le scan n'a encore jamais tourné. Refaire l'étape 3.
+
+![Le contrôle exigé `ci-scan / scan`, avec la source GitHub Actions](images/04-ruleset-status-check.png)
 
 Enregistrer avec **Create**.
 
 ## 5. Vérifier
 
-| Essai | Résultat attendu |
-| --- | --- |
-| Envoi direct sur `main` | Refusé par GitHub. |
-| Demande de fusion avec un faux secret | Scan bloqué. Bouton de fusion inactif. |
-| Demande de fusion propre | Scan conforme. Fusion possible. |
-| Demande de fusion qui supprime l'appel | Le scan tourne quand même, avec la version de `main`. |
+| Essai | Comment | Résultat attendu |
+| --- | --- | --- |
+| Envoi direct sur `main` | Sur `main`, un commit, puis `git push` | Refusé par GitHub. |
+| Demande de fusion propre | Celle de l'étape 3 | Scan conforme. Fusion possible. |
+| Demande de fusion avec un faux secret | Une branche avec une fausse clé dans un fichier | Scan bloqué. Bouton de fusion inactif. |
+| Demande de fusion qui supprime l'appel | Une branche sans `.github/workflows/ci-scan.yml` | Le scan tourne quand même, avec la version de `main`. |
+
+Le premier essai est le plus important : s'il passe, la protection n'est pas appliquée (voir « Limites »).
 
 ## Limites
 
 | Limite | Conséquence | Réponse |
 | --- | --- | --- |
-| Sur un compte personnel gratuit, GitHub peut ne pas appliquer les règles d'un dépôt privé. | La règle existe, mais elle ne bloque rien. | Faire l'essai « envoi direct » de l'étape 5. S'il passe : compte GitHub Pro, ou dépôt public. |
+| Sur un compte personnel gratuit, GitHub peut ne pas appliquer la protection d'un dépôt privé. | La règle existe, mais elle ne bloque rien. | Faire l'essai « envoi direct » de l'étape 5. S'il passe : compte GitHub Pro, ou dépôt public. |
 | L'administrateur du dépôt peut désactiver la règle. | Il peut passer outre un blocage. | Voulu : c'est la seule voie hors correction. |
 | Une demande de fusion peut modifier le fichier d'appel. Elle est scannée, puis le fichier modifié arrive sur `main`. | Les demandes suivantes peuvent échapper au scan. | Relire toute modification de `.github/`. Voir ci-dessous. |
 
