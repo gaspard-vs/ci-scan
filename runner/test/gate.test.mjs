@@ -37,11 +37,12 @@ const CLEAN = [
   { path: 'pixel.png', language: '', binary: true, mime: 'image/png', link: false },
 ]
 
-// Plays the steps: `answers` gives the result of each step, by its id.
+// Plays the steps: `answers` gives the result of each step, by its id. A
+// stage with no answer gives no result.
 function play(answers, started = []) {
   return async (step) => {
     started.push(step.id)
-    const answer = answers[step.id]
+    const answer = answers[step.id] ?? (step.gravity ? ok(sarif()) : undefined)
     if (!answer) throw new Error(`unexpected step ${step.id}`)
     return answer
   }
@@ -55,7 +56,10 @@ test('a clean repository passes', async () => {
   })
   assert.equal(found.verdict, 'conforme')
   assert.deepEqual(found.findings, [])
-  assert.deepEqual(found.steps, [{ id: 'gitleaks', control: 'Secrets', count: 0 }])
+  assert.deepEqual(found.steps, [
+    { id: 'gitleaks', control: 'Secrets', count: 0 },
+    { id: 'opengrep', control: 'Analyse du code', count: 0 },
+  ])
 })
 
 test('a result of a stage blocks, with its file and its line', async () => {
@@ -80,6 +84,54 @@ test('a medium result is reported and does not block', async () => {
   assert.equal(found.verdict, 'conforme')
   assert.equal(found.findings[0].gravity, 'medium')
   assert.match(text(found), /Signalé :/)
+})
+
+test('the gravity of a rule can be a word', async () => {
+  const words = [
+    { id: 'a', properties: { 'security-severity': 'HIGH' } },
+    { id: 'b', properties: { 'security-severity': 'Medium' } },
+    { id: 'c', properties: { 'security-severity': 'Info' } },
+    { id: 'd', properties: { 'security-severity': 'unknown' } },
+  ]
+  const results = ['a', 'b', 'c', 'd'].map((id) => result(id, 'settings.yaml', 1))
+  const found = await run(fixture('clean'), {
+    launch: play({ detection: ok(lines(CLEAN)), gitleaks: ok(sarif(results, words)) }),
+  })
+  // An unknown word gives the gravity of the stage.
+  assert.deepEqual(found.findings.map((finding) => finding.gravity), ['high', 'medium', 'low', 'high'])
+})
+
+test('the gravity that the stage sets for a rule comes first', async () => {
+  const commonDir = await mkdtemp(path.join(os.tmpdir(), 'ci-scan-stages-'))
+  await mkdir(path.join(commonDir, '10-set'))
+  const stage = {
+    id: 'set', control: 'Essai', image: `x@sha256:${'0'.repeat(64)}`, args: [], gravity: 'low',
+    gravities: { raised: 'high' },
+  }
+  await writeFile(path.join(commonDir, '10-set', 'stage.json'), JSON.stringify(stage))
+  const severity = [{ id: 'raised', properties: { 'security-severity': 'Medium' } }]
+  const results = [result('raised', 'settings.yaml', 1), result('other', 'settings.yaml', 2)]
+  const found = await run(fixture('clean'), {
+    commonDir,
+    detectionDir: path.join(ROOT, 'common', 'detection'),
+    launch: play({ detection: ok(lines(CLEAN)), set: ok(sarif(results, severity)) }),
+  })
+  assert.deepEqual(found.findings.map((finding) => finding.gravity), ['high', 'low'])
+  assert.equal(found.verdict, 'bloqué')
+})
+
+test('"tmp" and "gravities" of a stage are checked', async () => {
+  const base = { id: 'bad', control: 'Essai', image: `x@sha256:${'0'.repeat(64)}`, args: [], gravity: 'high' }
+  for (const [extra, message] of [
+    [{ tmp: 'yes' }, /"tmp" must be true or false/],
+    [{ gravities: { rule: 'severe' } }, /"gravities" must give one of/],
+    [{ gravities: ['high'] }, /"gravities" must give one of/],
+  ]) {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'ci-scan-stages-'))
+    await mkdir(path.join(dir, '10-bad'))
+    await writeFile(path.join(dir, '10-bad', 'stage.json'), JSON.stringify({ ...base, ...extra }))
+    await assert.rejects(readStages(dir), message)
+  }
 })
 
 test('a stage that gives no SARIF blocks', async () => {
@@ -112,7 +164,7 @@ test('a detection that fails blocks, and the stages still run', async () => {
     launch: play({ detection: { code: 1, stdout: '', stderr: 'no image' }, gitleaks: ok(sarif()) }, started),
   })
   assert.deepEqual(rules(found), ['step-failed'])
-  assert.deepEqual(started, ['detection', 'gitleaks'])
+  assert.deepEqual(started, ['detection', 'gitleaks', 'opengrep'])
 })
 
 test('a detection that is not readable blocks', async () => {
@@ -176,12 +228,12 @@ test('a covered technology owns its files and adds its stages', async () => {
   const found = await run(fixture('clean'), { techDir, launch: play(answers, started) })
   assert.equal(found.verdict, 'conforme')
   assert.deepEqual(found.technologies, ['python'])
-  assert.deepEqual(started, ['detection', 'gitleaks', 'lint'])
+  assert.deepEqual(started, ['detection', 'gitleaks', 'opengrep', 'lint'])
 
   // Without a Python file, the stage of Python does not run.
   started.length = 0
   await run(fixture('clean'), { techDir, launch: play({ ...answers, detection: ok(lines(CLEAN)) }, started) })
-  assert.deepEqual(started, ['detection', 'gitleaks'])
+  assert.deepEqual(started, ['detection', 'gitleaks', 'opengrep'])
 })
 
 test('a stage must fix its image by digest', async () => {

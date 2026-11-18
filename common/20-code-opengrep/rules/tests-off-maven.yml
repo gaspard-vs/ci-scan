@@ -1,0 +1,15 @@
+# Our rule: Maven does not run the tests, or ignores their failures.
+# Test file: tests-off-maven.xml.
+rules:
+  - id: tests-off-maven
+    languages: [regex]
+    severity: ERROR
+    message: Les tests sont désactivés pour tout le projet Maven, ou leurs échecs sont ignorés.
+    metadata:
+      category: security
+      cwe: "CWE-1164"
+      security-severity: High
+    paths:
+      include:
+        - pom.xml
+    pattern-regex: <(skipTests|skipITs|maven\.test\.skip|testFailureIgnore|maven\.test\.failure\.ignore)>\s*true\s*</\1>

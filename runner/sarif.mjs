@@ -20,8 +20,16 @@ function relative(uri) {
   return file
 }
 
-// A CVSS score, as tools give it in "security-severity".
-function gravityOf(score) {
+const WORDS = { critical: 'critical', high: 'high', medium: 'medium', low: 'low', info: 'low' }
+
+// The "security-severity" of a rule: a CVSS score, or a word. Undefined
+// when it is absent or not known.
+function gravityOf(severity) {
+  if (typeof severity === 'string' && Object.hasOwn(WORDS, severity.trim().toLowerCase())) {
+    return WORDS[severity.trim().toLowerCase()]
+  }
+  const score = Number.parseFloat(severity)
+  if (Number.isNaN(score)) return undefined
   if (score >= 9) return 'critical'
   if (score >= 7) return 'high'
   if (score >= 4) return 'medium'
@@ -39,14 +47,15 @@ export function findingsOf(sarif, stage) {
       if (location?.artifactLocation) {
         location.artifactLocation.uri = relative(location.artifactLocation.uri)
       }
-      const score = Number.parseFloat(rules.get(result.ruleId)?.properties?.['security-severity'])
+      const set = stage.gravities && Object.hasOwn(stage.gravities, result.ruleId) ? stage.gravities[result.ruleId] : undefined
+      const severity = gravityOf(rules.get(result.ruleId)?.properties?.['security-severity'])
       findings.push({
         source: stage.id,
         control: stage.control,
         title: result.ruleId ?? 'résultat',
         file: location?.artifactLocation?.uri,
         line: location?.region?.startLine,
-        gravity: Number.isNaN(score) ? stage.gravity : gravityOf(score),
+        gravity: set ?? severity ?? stage.gravity,
       })
     }
   }

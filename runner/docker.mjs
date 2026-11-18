@@ -70,8 +70,9 @@ async function imageOf(step) {
   return result
 }
 
-// Runs one step on one repository. The container cannot write anywhere, has
-// no privilege and, unless the step asks for it, has no network. The result
+// Runs one step on one repository. The container cannot write anywhere
+// (except an empty /tmp in memory, if the step asks for it), has no
+// privilege and, unless the step asks for it, has no network. The result
 // leaves on the standard output.
 export async function launch(step, repo, { timeout } = {}) {
   const { image, error } = await imageOf(step)
@@ -85,6 +86,7 @@ export async function launch(step, repo, { timeout } = {}) {
     '--volume', `${step.dir}:${STAGE_MOUNT}:ro`,
   ]
   if (!step.network) args.push('--network', 'none')
+  if (step.tmp) args.push('--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=1g')
   args.push(image, ...step.args)
   return exec('docker', args, { timeout })
 }

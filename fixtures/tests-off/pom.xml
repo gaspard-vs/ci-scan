@@ -1,0 +1,10 @@
+<!-- Fixture: Maven does not run the tests. CI scan must block. -->
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>ch.example</groupId>
+  <artifactId>tests-off</artifactId>
+  <version>1</version>
+  <properties>
+    <skipTests>true</skipTests>
+  </properties>
+</project>

@@ -1,0 +1,30 @@
+<project>
+  <properties>
+    <!-- ruleid: tests-off-maven -->
+    <skipTests>true</skipTests>
+    <!-- ruleid: tests-off-maven -->
+    <maven.test.skip>true</maven.test.skip>
+    <!-- ok: tests-off-maven -->
+    <skipTests>false</skipTests>
+    <!-- ok: tests-off-maven -->
+    <skipTests>${skip.unit}</skipTests>
+  </properties>
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- ruleid: tests-off-maven -->
+          <testFailureIgnore>true</testFailureIgnore>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <!-- ruleid: tests-off-maven -->
+          <skipITs> true </skipITs>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

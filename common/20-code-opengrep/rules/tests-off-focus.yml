@@ -1,0 +1,25 @@
+# Our rule: one focused test or suite, so the other tests of the file stop
+# running (Jasmine, Jest, Mocha, Vitest, Playwright).
+# Test file: tests-off-focus.ts.
+rules:
+  - id: tests-off-focus
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Un test « focus » est actif. Les autres tests ne tournent plus.
+    metadata:
+      category: security
+      cwe: "CWE-1164"
+      security-severity: High
+    paths:
+      include:
+        - "*.spec.*"
+        - "*.test.*"
+        - "*.e2e-spec.*"
+    pattern-either:
+      - pattern: fdescribe(...)
+      - pattern: fit(...)
+      - pattern: describe.only(...)
+      - pattern: it.only(...)
+      - pattern: test.only(...)
+      - pattern: context.only(...)
+      - pattern: test.describe.only(...)

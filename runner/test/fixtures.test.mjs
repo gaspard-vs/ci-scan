@@ -56,6 +56,46 @@ test('unowned-file: bloqué, fichier sans propriétaire', { skip }, async () => 
   assert.deepEqual(blocking(found), ['blob.bin: unowned-file'])
 })
 
+// The results of Opengrep: file, line, rule (without the folder) and gravity.
+const opengrep = (found) =>
+  found.findings
+    .filter((finding) => finding.source === 'opengrep')
+    .map((finding) => `${finding.file}:${finding.line} ${finding.title.split('.').pop()} ${finding.gravity}`)
+
+const TLS_OFF = [
+  'client.js:2 rules_lgpl_javascript_crypto_rule-node-tls-reject high',
+  'src/main/java/ch/example/Insecure.java:12 java_endpoint_rule-X509TrustManager high',
+  'src/main/java/ch/example/Insecure.java:14 java_endpoint_rule-X509TrustManager high',
+  'src/main/java/ch/example/Insecure.java:16 java_endpoint_rule-X509TrustManager high',
+  'src/main/java/ch/example/Insecure.java:22 java_endpoint_rule-HostnameVerifier high',
+]
+
+test('tls-off: bloqué, the certificate check is off', { skip }, async () => {
+  const found = await run(fixture('tls-off'))
+  assert.equal(found.verdict, 'bloqué')
+  assert.deepEqual(opengrep(found), TLS_OFF)
+})
+
+test('opengrep-silenced: the comments and the ignore files have no effect', { skip }, async () => {
+  const found = await run(fixture('opengrep-silenced'))
+  assert.deepEqual(opengrep(found), TLS_OFF)
+})
+
+test('tests-off: bloqué, the tests do not run', { skip }, async () => {
+  const found = await run(fixture('tests-off'))
+  assert.equal(found.verdict, 'bloqué')
+  assert.deepEqual(opengrep(found), [
+    'pom.xml:8 tests-off-maven high',
+    'src/app/app.spec.ts:2 tests-off-focus high',
+    'src/app/app.spec.ts:3 tests-off-focus high',
+  ])
+})
+
+test('open-access: bloqué, all paths are open to all', { skip }, async () => {
+  const found = await run(fixture('open-access'))
+  assert.deepEqual(blocking(found), ['src/main/resources/application.properties: stage.rules.open-access-quarkus'])
+})
+
 test('broken-stage: a stage that gives no result blocks', { skip }, async () => {
   const found = await run(fixture('clean'), {
     commonDir: fixture('stages/broken'),

@@ -1,0 +1,3 @@
+# GitLab rules that update-rules.sh does not copy. One path for each line,
+# then the reason. A person adds a line when a rule stops the stage.
+csharp/crypto/rule-CertificateValidationDisabled.yml  Opengrep v1.33.1 cannot parse the C# pattern "(...) => true;".

@@ -1,0 +1,90 @@
+# Each month, copies the last open GitLab rules into the Opengrep stage and
+# opens a pull request. A person reads it and merges it: nothing changes in
+# the scan before that.
+#
+# Needs the setting "Allow GitHub Actions to create and approve pull
+# requests" (Settings > Actions > General).
+name: update-rules
+
+on:
+  schedule:
+    - cron: '17 5 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  BRANCH: update-gitlab-rules
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # actions/setup-node v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 22
+
+      - name: Copy the last GitLab rules
+        id: copy
+        run: |
+          common/20-code-opengrep/update-rules.sh 2> "$RUNNER_TEMP/warnings.txt"
+          cat "$RUNNER_TEMP/warnings.txt" >&2
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "The rules did not change."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A pull request made with this token does not start the test
+      # workflow, so the tests run here. A failure is written in the pull
+      # request: a person fixes it before the merge.
+      - name: Test
+        id: test
+        if: steps.copy.outputs.changed == 'true'
+        continue-on-error: true
+        run: npm test
+
+      - name: Open the pull request
+        if: steps.copy.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTS: ${{ steps.test.outcome }}
+        run: |
+          commit=$(node -p "require('./common/20-code-opengrep/gitlab/SOURCE.json').commit")
+          date=$(node -p "require('./common/20-code-opengrep/gitlab/SOURCE.json').date")
+          count=$(node -p "require('./common/20-code-opengrep/gitlab/SOURCE.json').rules")
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch --create "$BRANCH"
+          git add --all common/20-code-opengrep/gitlab
+          git commit --quiet --message "Update the GitLab rules to ${commit:0:12}"
+          git push --force origin "$BRANCH"
+          {
+            echo "GitLab rules at \`$commit\` ($date): $count rules."
+            echo
+            if [ "$TESTS" = success ]; then
+              echo "The tests pass."
+            else
+              echo "**The tests fail.** Read the run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              echo "A rule that Opengrep cannot read goes in \`common/20-code-opengrep/gitlab-excluded.txt\`, with the reason."
+            fi
+            if [ -s "$RUNNER_TEMP/warnings.txt" ]; then
+              echo
+              echo '```'
+              cat "$RUNNER_TEMP/warnings.txt"
+              echo '```'
+            fi
+          } > "$RUNNER_TEMP/body.md"
+          title="Update the GitLab rules to ${commit:0:12}"
+          if gh pr view "$BRANCH" --json state --jq .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi

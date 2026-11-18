@@ -4,8 +4,13 @@
 // The contract of a step:
 //   - the container gets the repository at /scan/repo and the folder of the
 //     step at /stage, both read-only;
+//   - with "tmp": true, it also gets an empty /tmp in memory, deleted at
+//     the end, for a tool that cannot work without it;
 //   - it prints its result on the standard output and ends with code 0;
 //   - a stage prints SARIF 2.1.0; the detection prints one JSON line per file.
+//
+// The gravity of a result: "gravities" of the stage for its rule, else the
+// "security-severity" of the rule (a CVSS score or a word), else "gravity".
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -36,7 +41,16 @@ function check(step, file, { stage }) {
     fail('"args" must be a list of strings')
   }
   if (step.network !== undefined && typeof step.network !== 'boolean') fail('"network" must be true or false')
+  if (step.tmp !== undefined && typeof step.tmp !== 'boolean') fail('"tmp" must be true or false')
   if (stage && !GRAVITIES.includes(step.gravity)) fail(`"gravity" must be one of ${GRAVITIES.join(', ')}`)
+  if (step.gravities !== undefined) {
+    const valid =
+      stage &&
+      typeof step.gravities === 'object' &&
+      !Array.isArray(step.gravities) &&
+      Object.values(step.gravities).every((gravity) => GRAVITIES.includes(gravity))
+    if (!valid) fail(`"gravities" must give one of ${GRAVITIES.join(', ')} for each rule`)
+  }
 }
 
 export async function readStep(dir, name, { stage }) {

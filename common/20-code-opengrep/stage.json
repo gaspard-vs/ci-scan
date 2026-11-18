@@ -1,0 +1,26 @@
+{
+  "id": "opengrep",
+  "control": "Analyse du code",
+  "build": true,
+  "version": "v1.33.1",
+  "tmp": true,
+  "args": [
+    "scan",
+    "--disable-version-check",
+    "--disable-nosem",
+    "--no-git-ignore",
+    "--x-ignore-semgrepignore-files",
+    "--max-target-bytes=0",
+    "--sarif",
+    "--quiet",
+    "--config", "/stage/gitlab",
+    "--config", "/stage/rules",
+    "/scan/repo"
+  ],
+  "gravity": "high",
+  "gravities": {
+    "stage.gitlab.java.endpoint.java_endpoint_rule-X509TrustManager": "high",
+    "stage.gitlab.java.endpoint.java_endpoint_rule-HostnameVerifier": "high",
+    "stage.gitlab.rules.lgpl.javascript.crypto.rules_lgpl_javascript_crypto_rule-node-tls-reject": "high"
+  }
+}

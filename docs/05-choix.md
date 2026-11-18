@@ -18,6 +18,7 @@
 | Outils | Logiciels libres, en conteneurs, à version figée. | Même résultat partout. Aucun changement invisible. |
 | Double contrôle | Deux outils pour les secrets et les vulnérabilités. | Les deux risques les plus graves. Aucun outil ne trouve tout. |
 | Emplacement | Un dépôt à part, sur GitHub, géré par la sécurité. | Les projets et leurs IA ne peuvent pas le modifier. |
+| Règles d'analyse du code | Les règles libres de GitLab, mises à jour chaque mois. Nos règles seulement pour les manques, chacune avec son test. | Des règles écrites seules sont fragiles. GitLab les maintient pour tous ses clients. |
 
 ## Ce qui est écarté
 
@@ -28,6 +29,15 @@ Pour lancer les outils sur GitHub :
 | Un conteneur par pas de la tâche | La plateforme devrait connaître chaque outil. |
 | Une tâche par outil | Plus rapide. Mais chaque tâche récupère le code à nouveau, et les résultats doivent être transmis entre tâches. |
 | Les conteneurs de service de GitHub | Prévus pour une base de données à côté, pas pour des outils de scan. |
+
+Pour les règles d'analyse du code :
+
+| Idée | Motif |
+| --- | --- |
+| Les règles d'Opengrep | Archivées, plus maintenues. |
+| Les règles de Semgrep | Pas un logiciel libre. |
+| Les autres règles de GitLab | Une partie demande un abonnement payant. Une autre interdit la revente : pas un logiciel libre. |
+| Écrire toutes nos règles | Fragile. Trop de travail pour une seule équipe. |
 
 ## À vérifier
 

@@ -1,0 +1,19 @@
+# Our rule: a Quarkus permission opens all paths to all, without a login.
+# A permission has a name; its paths and its policy are two lines, in any
+# order. The profiles %dev and %test do not count.
+# Test file: open-access-quarkus.properties.
+rules:
+  - id: open-access-quarkus
+    languages: [regex]
+    severity: ERROR
+    message: Une permission Quarkus ouvre tous les chemins à tous, sans connexion.
+    metadata:
+      category: security
+      cwe: "CWE-862"
+      security-severity: High
+    paths:
+      include:
+        - "application*.properties"
+    pattern-either:
+      - pattern-regex: (?m)^[ \t]*(?:%prod\.)?quarkus\.http\.auth\.permission\.([\w-]+)\.paths[ \t]*[=:][ \t]*(?:[^\n]*,)?[ \t]*/\*[ \t]*(?:,[^\n]*)?$[\s\S]*?^[ \t]*(?:%prod\.)?quarkus\.http\.auth\.permission\.\1\.policy[ \t]*[=:][ \t]*permit[ \t]*$
+      - pattern-regex: (?m)^[ \t]*(?:%prod\.)?quarkus\.http\.auth\.permission\.([\w-]+)\.policy[ \t]*[=:][ \t]*permit[ \t]*$[\s\S]*?^[ \t]*(?:%prod\.)?quarkus\.http\.auth\.permission\.\1\.paths[ \t]*[=:][ \t]*(?:[^\n]*,)?[ \t]*/\*[ \t]*(?:,[^\n]*)?$

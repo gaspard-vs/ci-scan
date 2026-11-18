@@ -1,0 +1,6 @@
+{
+  "repository": "https://gitlab.com/gitlab-org/security-products/sast-rules.git",
+  "commit": "83144bd2ec7d3200cda96347fa923f81c8ad8413",
+  "date": "2026-11-17",
+  "rules": 483
+}
