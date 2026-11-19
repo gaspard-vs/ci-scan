@@ -1,0 +1,20 @@
+{
+  "id": "osv-maven",
+  "control": "Vulnérabilités connues",
+  "build": "../30-deps-osv",
+  "version": "v2.7.1",
+  "tmp": true,
+  "files": ["pom.xml"],
+  "proxy": {
+    "build": "helper",
+    "args": ["--upstream", "https://repo.maven.apache.org/maven2", "--internal", "ch.vs."]
+  },
+  "env": {
+    "OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY": "/data"
+  },
+  "data": [
+    { "file": "osv-scalibr/Maven/all.zip", "url": "https://osv-vulnerabilities.storage.googleapis.com/Maven/all.zip", "when": ["pom.xml"] }
+  ],
+  "args": ["maven", "--registry", "http://proxy:8080/maven2", "--internal", "ch.vs."],
+  "gravity": "high"
+}

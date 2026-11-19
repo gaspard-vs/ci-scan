@@ -1,0 +1,2 @@
+# The settings of OSV-Scanner for CI scan: none. This file replaces the
+# osv-scanner.toml of the target, so that the target cannot ignore a flaw.

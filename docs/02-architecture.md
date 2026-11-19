@@ -51,8 +51,11 @@ Chaque dossier contient une suite d'étapes. Une étape, c'est un outil.
 
 Toutes les étapes suivent **le même contrat** :
 
-- elle reçoit un dépôt, en lecture seule ;
+- elle reçoit un dépôt, en lecture seule, ou seulement une copie des fichiers dont elle a besoin ;
+- elle n'a pas de réseau ;
 - si l'outil en a besoin, elle reçoit aussi un dossier temporaire en mémoire, vide au départ et effacé à la fin ;
+- si l'outil a besoin de données publiques (une base de vulnérabilités), le moteur les télécharge avant, les vérifie, et les lui donne en lecture seule ;
+- si l'outil doit demander quelque chose à l'extérieur, il passe par un relais : sa seule sortie. Le relais ne laisse passer que les demandes prévues, et note chacune ;
 - elle rend ses résultats dans un format standard (SARIF) ;
 - elle déclare son image, à version figée, et la gravité de ses résultats.
 

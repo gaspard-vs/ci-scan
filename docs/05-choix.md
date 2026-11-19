@@ -19,6 +19,11 @@
 | Double contrôle | Deux outils pour les secrets et les vulnérabilités. | Les deux risques les plus graves. Aucun outil ne trouve tout. |
 | Emplacement | Un dépôt à part, sur GitHub, géré par la sécurité. | Les projets et leurs IA ne peuvent pas le modifier. |
 | Règles d'analyse du code | Les règles libres de GitLab, mises à jour chaque mois. Nos règles seulement pour les manques, chacune avec son test. | Des règles écrites seules sont fragiles. GitLab les maintient pour tous ses clients. |
+| Réseau des outils | Aucun outil qui lit le code n'a de réseau. Une exception encadrée : la résolution Maven passe par un relais qui ne laisse sortir que des demandes de fichiers POM vers Maven Central. | Un outil, même piégé ou trop bavard, ne peut rien envoyer. |
+| Base des vulnérabilités | Téléchargée avant le scan, seulement pour les écosystèmes du projet. Chaque fichier est vérifié par son empreinte (MD5) donnée par OSV, même s'il vient du cache. | Un cache peut être empoisonné par un workflow du projet scanné. |
+| Paquets de développement | Une faille bloque comme toute autre faille. | Un outil de développement tourne sur le poste et dans la chaîne de construction. |
+| Paquets internes (`ch.vs.*`) | Jamais demandés à Maven Central. Listés dans le rapport, pour information. | Ils sont scannés dans leur propre dépôt. Leur nom ne sort pas. |
+| Nos programmes dans les étapes | En Python, avec sa seule bibliothèque standard. | Un langage connu à l'État. Rien à installer. |
 
 ## Ce qui est écarté
 
@@ -38,6 +43,16 @@ Pour les règles d'analyse du code :
 | Les règles de Semgrep | Pas un logiciel libre. |
 | Les autres règles de GitLab | Une partie demande un abonnement payant. Une autre interdit la revente : pas un logiciel libre. |
 | Écrire toutes nos règles | Fragile. Trop de travail pour une seule équipe. |
+
+Pour les vulnérabilités connues :
+
+| Idée | Motif |
+| --- | --- |
+| Donner le réseau à OSV-Scanner | Il enverrait la liste de nos paquets à Google, et les noms internes à Maven Central. |
+| Lire seulement les versions écrites dans `pom.xml` | Un projet Quarkus ou Spring n'écrit presque aucune version : `bpesvc` n'était vérifié que pour 9 paquets sur 30, sans les dépendances des dépendances. |
+| Écrire notre propre résolveur Maven | Les règles de Maven sont nombreuses. Une petite erreur donne une liste fausse qui a l'air juste. |
+| Le cache GitHub de CI scan | GitHub ne le permet pas : le scan tourne au nom du projet scanné. |
+| Les paquets de développement un niveau plus bas | Refusé : ils tournent aussi, sur le poste et dans la construction. |
 
 ## À vérifier
 

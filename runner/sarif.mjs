@@ -47,6 +47,7 @@ export function findingsOf(sarif, stage) {
       if (location?.artifactLocation) {
         location.artifactLocation.uri = relative(location.artifactLocation.uri)
       }
+      if (result.kind === 'informational') continue
       const set = stage.gravities && Object.hasOwn(stage.gravities, result.ruleId) ? stage.gravities[result.ruleId] : undefined
       const severity = gravityOf(rules.get(result.ruleId)?.properties?.['security-severity'])
       findings.push({
@@ -60,6 +61,24 @@ export function findingsOf(sarif, stage) {
     }
   }
   return findings
+}
+
+// The results of a stage that are only for information. Call it after
+// findingsOf, which makes the paths relative.
+export function notesOf(sarif, stage) {
+  const notes = []
+  for (const run of sarif.runs) {
+    for (const result of run.results) {
+      if (result.kind !== 'informational') continue
+      notes.push({
+        source: stage.id,
+        control: stage.control,
+        title: result.message?.text ?? result.ruleId ?? 'information',
+        file: result.locations?.[0]?.physicalLocation?.artifactLocation?.uri,
+      })
+    }
+  }
+  return notes
 }
 
 // One SARIF file for the whole scan: the results of the runner itself, then

@@ -22,10 +22,22 @@ export function text(result) {
   for (const step of result.steps) {
     const outcome = step.count === null ? "n'a pas pu tourner" : `${step.count} résultat(s)`
     lines.push(`  ${step.id} (${step.control}) : ${outcome}`)
+    for (const data of step.data ?? []) {
+      lines.push(`    données : ${data.file}, du ${data.date ? data.date.slice(0, 16).replace('T', ' ') + ' UTC' : '(date inconnue)'}`)
+    }
+    if (step.requests) {
+      const { total, refused } = step.requests
+      lines.push(`    requêtes vers l'extérieur : ${total}, dont ${refused} refusée(s)`)
+    }
   }
   const blocking = result.findings.filter((finding) => finding.blocks)
   const reported = result.findings.filter((finding) => !finding.blocks)
-  for (const [title, group] of [['Points bloquants', blocking], ['Signalé', reported]]) {
+  const groups = [
+    ['Points bloquants', blocking],
+    ['Signalé', reported],
+    ['Pour information', result.notes ?? []],
+  ]
+  for (const [title, group] of groups) {
     if (!group.length) continue
     lines.push('', `${title} :`)
     for (const finding of group) {

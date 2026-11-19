@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <!-- The parent gives the version of snakeyaml: 1.28. -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.5.0</version>
+  </parent>
+  <groupId>ch.vs.example</groupId>
+  <artifactId>maven-resolved</artifactId>
+  <version>1.0</version>
+  <dependencies>
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+    </dependency>
+    <!-- An internal package: never asked from Maven Central. -->
+    <dependency>
+      <groupId>ch.vs.example</groupId>
+      <artifactId>internal-lib</artifactId>
+      <version>1.0</version>
+    </dependency>
+  </dependencies>
+</project>

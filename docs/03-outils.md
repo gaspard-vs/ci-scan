@@ -12,7 +12,7 @@ Tous sont des logiciels libres, connus et maintenus.
 | Secrets | TruffleHog | Vérifie si le secret trouvé est encore actif. |  |
 | Vulnérabilités connues | OSV-Scanner | Base publique OSV (Google). Couvre presque tous les langages. |  |
 | Vulnérabilités connues | Grype | Second avis. Lit aussi les bibliothèques livrées en fichier. |  |
-| Paquets douteux | Liste OSV des paquets malveillants | La liste publique de référence. |  |
+| Paquets douteux | Liste OSV des paquets malveillants, lue par OSV-Scanner | La liste publique de référence. |  |
 | Paquets douteux | GuardDog | Repère les paquets piégés (npm, Python). |  |
 | Paquets douteux | Vérification du registre | Le paquet existe-t-il vraiment ? Est-il très récent ? |  |
 | Analyse du code | Opengrep | Plus de 30 langages. Règles faciles à écrire. | Oui |
@@ -52,6 +52,26 @@ Les contrôles marqués « Rapide » prennent quelques secondes. Le projet peut 
 
 - Le responsable de CI scan accepte chaque changement. Aujourd'hui : Anna. Plus tard : le responsable de la sécurité.
 - CI scan peut relever la gravité d'une règle de GitLab. Exemple : un contrôle de certificat désactivé est « moyen » chez GitLab, et bloquant chez nous.
+
+## Les vulnérabilités connues (OSV-Scanner)
+
+OSV-Scanner compare la liste des paquets du projet avec la base publique OSV. Cette base contient aussi la liste des paquets malveillants.
+
+| Fichiers | Comment | Réseau |
+| --- | --- | --- |
+| Fichiers de verrouillage (`package-lock.json`, `yarn.lock`, `poetry.lock`, etc.) | Les versions y sont toutes écrites. | Aucun. |
+| `pom.xml` (Maven) | Les versions viennent souvent d'un parent ou d'une nomenclature (BOM) publiée sur Maven Central. Un relais va chercher ces fichiers POM. | Seulement par le relais, seulement des fichiers POM, seulement Maven Central. |
+
+- La base est téléchargée avant le scan, seulement pour les écosystèmes du projet (Maven : 11 Mo, npm : 222 Mo). Chaque fichier est vérifié par son empreinte.
+- Le rapport donne la date de chaque base.
+- Un paquet malveillant est critique. Une faille sans score est élevée.
+- Une faille d'un paquet de développement bloque comme les autres.
+- Les réglages du projet (`osv-scanner.toml`, `.gitignore`) sont ignorés.
+- Un fichier de verrouillage sans base connue fait échouer l'étape : le scan bloque.
+
+**Les paquets internes (`ch.vs.*`)** ne sont jamais demandés à Maven Central. Le relais répond à leur place, sans rien envoyer. Ils sont listés dans le rapport, « pour information » : ils sont scannés dans leur propre dépôt.
+
+**Limite :** les dépendances d'un profil Maven ne sont pas résolues. Les paquets internes d'un profil sont quand même listés.
 
 ## Les risques propres au code écrit par IA
 
