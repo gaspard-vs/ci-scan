@@ -58,6 +58,7 @@ test('a clean repository passes', async () => {
   assert.equal(found.verdict, 'conforme')
   assert.deepEqual(found.findings, [])
   assert.deepEqual(found.steps, [
+    { id: 'syft', control: 'Inventaire des composants', count: 0 },
     { id: 'gitleaks', control: 'Secrets', count: 0 },
     { id: 'opengrep', control: 'Analyse du code', count: 0 },
     { id: 'osv', control: 'Vulnérabilités connues', count: 0 },
@@ -143,7 +144,7 @@ test('a stage that gives no SARIF blocks', async () => {
     const found = await run(fixture('clean'), { launch: play({ detection: ok(lines(CLEAN)), gitleaks: answer }) })
     assert.equal(found.verdict, 'bloqué')
     assert.deepEqual(rules(found), ['step-failed'])
-    assert.equal(found.steps[0].count, null)
+    assert.equal(found.steps.find((step) => step.id === 'gitleaks').count, null)
   }
 })
 
@@ -168,7 +169,7 @@ test('a detection that fails blocks, and the stages still run', async () => {
     launch: play({ detection: { code: 1, stdout: '', stderr: 'no image' }, gitleaks: ok(sarif()) }, started),
   })
   assert.deepEqual(rules(found), ['step-failed'])
-  assert.deepEqual(started, ['detection', 'gitleaks', 'opengrep', 'osv'])
+  assert.deepEqual(started, ['detection', 'syft', 'gitleaks', 'opengrep', 'osv'])
 })
 
 test('a detection that is not readable blocks', async () => {
@@ -232,12 +233,12 @@ test('a covered technology owns its files and adds its stages', async () => {
   const found = await run(fixture('clean'), { techDir, launch: play(answers, started) })
   assert.equal(found.verdict, 'conforme')
   assert.deepEqual(found.technologies, ['python'])
-  assert.deepEqual(started, ['detection', 'gitleaks', 'opengrep', 'osv', 'lint'])
+  assert.deepEqual(started, ['detection', 'syft', 'gitleaks', 'opengrep', 'osv', 'lint'])
 
   // Without a Python file, the stage of Python does not run.
   started.length = 0
   await run(fixture('clean'), { techDir, launch: play({ ...answers, detection: ok(lines(CLEAN)) }, started) })
-  assert.deepEqual(started, ['detection', 'gitleaks', 'opengrep', 'osv'])
+  assert.deepEqual(started, ['detection', 'syft', 'gitleaks', 'opengrep', 'osv'])
 })
 
 test('a stage must fix its image by digest', async () => {
@@ -377,4 +378,54 @@ test('the requests of a proxy are counted in the report and kept in the SARIF', 
   assert.deepEqual(found.steps[0].requests, { total: 2, refused: 1 })
   assert.match(text(found), /requêtes vers l'extérieur : 2, dont 1 refusée\(s\)/)
   assert.deepEqual(found.sarif.runs[1].properties['ci-scan/requests'], requests)
+})
+
+// A SARIF with no result that gives a file and a summary line.
+function giving(name, content, summary) {
+  const properties = { 'ci-scan/output': { name, content } }
+  if (summary !== undefined) properties['ci-scan/summary'] = summary
+  return JSON.stringify({ version: '2.1.0', runs: [{ tool: { driver: { name: 'fake' } }, results: [], properties }] })
+}
+
+test('a stage can give a file and a summary line, which leave the SARIF', async () => {
+  const sbom = { bomFormat: 'CycloneDX', components: [] }
+  const options = await oneStage({})
+  const found = await run(fixture('clean'), {
+    ...options,
+    launch: play({ detection: ok(lines(CLEAN)), one: ok(giving('sbom.cdx.json', sbom, '0 composant')) }),
+  })
+  assert.equal(found.verdict, 'conforme')
+  assert.deepEqual(found.outputs, [{ name: 'sbom.cdx.json', content: sbom }])
+  assert.deepEqual(found.steps[0], { id: 'one', control: 'Essai', count: 0, summary: '0 composant', outputs: ['sbom.cdx.json'] })
+  assert.match(text(found), /one \(Essai\) : 0 résultat\(s\)\n {4}0 composant\n {4}fichier : sbom\.cdx\.json/)
+  assert.deepEqual(found.sarif.runs[1].properties, { 'ci-scan/summary': '0 composant' })
+})
+
+test('a file with a path, or a summary on two lines, blocks the stage', async () => {
+  for (const answer of [
+    giving('../sbom.json', {}),
+    giving('out/sbom.json', {}),
+    giving('Sbom.json', {}),
+    giving('sbom.json', undefined),
+    giving('sbom.json', {}, 'a\nb'),
+  ]) {
+    const options = await oneStage({})
+    const found = await run(fixture('clean'), { ...options, launch: play({ detection: ok(lines(CLEAN)), one: ok(answer) }) })
+    assert.deepEqual(rules(found), ['step-failed'], answer)
+    assert.deepEqual(found.outputs, [])
+  }
+})
+
+test('two stages cannot give the same file', async () => {
+  const options = await oneStage({})
+  await mkdir(path.join(options.commonDir, '20-two'))
+  const two = { id: 'two', control: 'Essai', image: `x@sha256:${'0'.repeat(64)}`, args: [], gravity: 'high' }
+  await writeFile(path.join(options.commonDir, '20-two', 'stage.json'), JSON.stringify(two))
+  const found = await run(fixture('clean'), {
+    ...options,
+    launch: play({ detection: ok(lines(CLEAN)), one: ok(giving('sbom.json', { a: 1 })), two: ok(giving('sbom.json', { a: 2 })) }),
+  })
+  assert.deepEqual(rules(found), ['step-failed'])
+  assert.match(found.findings[0].title, /« two ».*a stage already gives sbom\.json/)
+  assert.deepEqual(found.outputs, [{ name: 'sbom.json', content: { a: 1 } }])
 })

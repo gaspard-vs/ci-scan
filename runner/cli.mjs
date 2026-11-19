@@ -3,6 +3,9 @@
 //
 //   node runner/cli.mjs <repository> [--out <folder>]
 //
+// --out receives ci-scan.sarif and the files that the stages give
+// (sbom.cdx.json).
+//
 // Exit code: 0 conforme, 1 bloqué, 2 the scan itself failed.
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -28,6 +31,10 @@ async function main() {
   if (values.out) {
     await mkdir(values.out, { recursive: true })
     await writeFile(path.join(values.out, 'ci-scan.sarif'), JSON.stringify(result.sarif, null, 1))
+    // The files that the stages give, such as the SBOM.
+    for (const { name, content } of result.outputs) {
+      await writeFile(path.join(values.out, name), typeof content === 'string' ? content : JSON.stringify(content))
+    }
   }
   return result.verdict === 'conforme' ? 0 : 1
 }

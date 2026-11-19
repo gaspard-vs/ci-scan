@@ -14,7 +14,7 @@ runner ── copies of the pom.xml files ──▶ stage (OSV-Scanner)
 | Path | Content |
 | --- | --- |
 | `stage.json` | The stage. It uses the image of `../30-deps-osv`. |
-| `helper/helper.py` | The proxy. Python standard library only. |
+| `helper/helper.py` | The proxy. Python standard library only. The Syft stage (`../05-sbom-syft`) uses it too, with the same arguments. |
 | `helper/test_helper.py` | Its tests. `npm test` runs them in its image. |
 | `helper/Dockerfile` | Its image: Python by digest. |
 

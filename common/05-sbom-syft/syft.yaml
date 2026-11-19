@@ -1,0 +1,27 @@
+# Our settings for Syft. They replace the settings of the target: Syft gets
+# this file with --config and starts in /tmp, so it never reads a
+# .syft.yaml of the target.
+
+# Syft asks nothing, except the POM files below.
+check-for-app-update: false
+
+# Only the packages, not the files that hold them.
+file:
+  metadata:
+    selection: none
+
+# The versions that a parent POM or a BOM gives. Syft asks the POM files of
+# the Maven helper (the proxy of the stage, the one of the OSV Maven stage):
+# GET of POM files to Maven Central only, internal packages never sent. Not
+# the dependencies of the dependencies: more than 10 min for bpesvc.
+java:
+  use-network: true
+  maven-url: http://proxy:8080/maven2
+  resolve-transitive-dependencies: false
+  max-parent-recursive-depth: 10
+javascript:
+  search-remote-licenses: false
+golang:
+  search-remote-licenses: false
+python:
+  search-remote-licenses: false

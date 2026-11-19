@@ -1,0 +1,13 @@
+{
+  "id": "syft",
+  "control": "Inventaire des composants",
+  "build": true,
+  "version": "v1.57.2",
+  "tmp": true,
+  "proxy": {
+    "build": "../31-deps-maven/helper",
+    "args": ["--upstream", "https://repo.maven.apache.org/maven2", "--internal", "ch.vs."]
+  },
+  "args": [],
+  "gravity": "high"
+}

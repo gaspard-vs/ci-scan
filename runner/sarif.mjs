@@ -81,6 +81,36 @@ export function notesOf(sarif, stage) {
   return notes
 }
 
+const OUTPUT_NAME = /^[a-z0-9][a-z0-9.-]*$/
+
+// What a stage gives beside its results, in the properties of its runs:
+//   - "ci-scan/output": a file, {"name", "content"}. The runner writes it
+//     next to the report. It is removed from the SARIF: the SARIF of the scan
+//     stays small. The name is short, with no folder;
+//   - "ci-scan/summary": one line for the report.
+export function extrasOf(sarif) {
+  const outputs = []
+  const summaries = []
+  for (const run of sarif.runs) {
+    const properties = run.properties ?? {}
+    const summary = properties['ci-scan/summary']
+    if (summary !== undefined) {
+      if (typeof summary !== 'string' || /[\r\n]/.test(summary)) throw new Error('"ci-scan/summary" must be one line')
+      summaries.push(summary)
+    }
+    const output = properties['ci-scan/output']
+    if (output !== undefined) {
+      if (typeof output?.name !== 'string' || !OUTPUT_NAME.test(output.name) || output.content === undefined) {
+        throw new Error('"ci-scan/output" must give a short file "name" and a "content"')
+      }
+      if (outputs.some((known) => known.name === output.name)) throw new Error(`two files ${output.name}`)
+      outputs.push({ name: output.name, content: output.content })
+      delete properties['ci-scan/output']
+    }
+  }
+  return { outputs, summary: summaries.join(', ') }
+}
+
 // One SARIF file for the whole scan: the results of the runner itself, then
 // the run of each stage.
 export function merge(own, runs) {

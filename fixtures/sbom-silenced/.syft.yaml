@@ -1,0 +1,4 @@
+# The target tries to hide its components from the inventory.
+exclude:
+  - "./package-lock.json"
+  - "./pom.xml"

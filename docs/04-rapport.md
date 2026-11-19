@@ -10,7 +10,12 @@ Une page, en français :
 - **Les points bloquants**, chacun avec le fichier et la correction attendue.
 - **Un conseil**, si le projet ne lance pas lui-même les contrôles rapides.
 
-Le détail technique est joint, pour les développeurs et pour d'autres outils.
+Sont joints, pour les développeurs et pour d'autres outils :
+
+- le détail technique (`ci-scan.sarif`) ;
+- l'inventaire des composants (`sbom.cdx.json`, le SBOM).
+
+Sur GitHub, ces deux fichiers restent avec le résultat du scan, 90 jours au plus.
 
 ## Où le lire
 

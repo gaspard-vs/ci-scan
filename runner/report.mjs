@@ -22,6 +22,8 @@ export function text(result) {
   for (const step of result.steps) {
     const outcome = step.count === null ? "n'a pas pu tourner" : `${step.count} résultat(s)`
     lines.push(`  ${step.id} (${step.control}) : ${outcome}`)
+    if (step.summary) lines.push(`    ${step.summary}`)
+    for (const name of step.outputs ?? []) lines.push(`    fichier : ${name}`)
     for (const data of step.data ?? []) {
       lines.push(`    données : ${data.file}, du ${data.date ? data.date.slice(0, 16).replace('T', ' ') + ' UTC' : '(date inconnue)'}`)
     }
