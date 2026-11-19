@@ -10,6 +10,9 @@ Un scanner de sécurité unique pour tous les projets, en particulier ceux écri
 | La détection : chaque fichier a un propriétaire | Construit |
 | La porte fermée : ce qui n'est pas contrôlé bloque | Construit |
 | Secrets (Gitleaks) | Construit |
+| Analyse du code (Opengrep) | Construit |
+| Vulnérabilités connues (OSV-Scanner) | Construit |
+| Inventaire des composants (Syft) | Construit |
 | Le scan obligatoire sur GitHub ([mise en place](setup.html)) | Construit, sur un dépôt d'essai |
 | Les autres contrôles | À construire |
 | Java et JavaScript | À construire. D'ici là, leur code bloque : « technologie non couverte ». |

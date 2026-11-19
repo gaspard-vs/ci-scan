@@ -177,3 +177,55 @@ test('maven-resolved: the parent gives the version, and the internal package nev
   assert.deepEqual(seen.filter((request) => request.action !== 'internal' && request.path.includes('/ch/vs/')), [])
   assert.deepEqual(seen.filter((request) => request.action === 'refused'), [])
 })
+
+// The components of the SBOM that the Syft stage gives: their purl.
+function sbom(found) {
+  const [output] = found.outputs.filter((entry) => entry.name === 'sbom.cdx.json')
+  assert.ok(output, 'no SBOM')
+  assert.equal(output.content.bomFormat, 'CycloneDX')
+  assert.equal(output.content.specVersion, '1.6')
+  return (output.content.components ?? []).map((component) => component.purl).sort()
+}
+
+const MIXED = ['pkg:maven/org.apache.commons/commons-text@1.10.0', 'pkg:npm/lodash@4.17.21']
+
+test('sbom-mixed: the SBOM lists the npm and the Maven components', { skip }, async () => {
+  const found = await run(fixture('sbom-mixed'))
+  const purls = sbom(found)
+  for (const purl of MIXED) assert.ok(purls.includes(purl), purls.join('\n'))
+  const step = found.steps.find((entry) => entry.id === 'syft')
+  const { requests, ...rest } = step
+  assert.deepEqual(rest, { id: 'syft', control: 'Inventaire des composants', count: 0, summary: '4 composants', outputs: ['sbom.cdx.json'] })
+  assert.equal(requests.refused, 0)
+  // The SBOM is not in the SARIF of the scan.
+  assert.ok(!JSON.stringify(found.sarif).includes('CycloneDX'))
+})
+
+test('sbom-jar: a library delivered as a .jar file is in the SBOM', { skip }, async () => {
+  const found = await run(fixture('sbom-jar'))
+  assert.deepEqual(sbom(found), ['pkg:maven/org.apache.commons/commons-text@1.9'])
+})
+
+test('sbom-silenced: the settings of the target have no effect on the SBOM', { skip }, async () => {
+  const found = await run(fixture('sbom-silenced'))
+  const purls = sbom(found)
+  for (const purl of MIXED) assert.ok(purls.includes(purl), purls.join('\n'))
+})
+
+test('maven-resolved: the SBOM has the version that the parent gives, and the internal package never leaves', { skip }, async () => {
+  const found = await run(fixture('maven-resolved'))
+  const purls = sbom(found)
+  assert.ok(purls.includes('pkg:maven/org.yaml/snakeyaml@1.28'), purls.join('\n'))
+  assert.ok(purls.includes('pkg:maven/ch.vs.example/internal-lib@1.0'), purls.join('\n'))
+  const step = found.steps.find((entry) => entry.id === 'syft')
+  assert.ok(step.requests.total > 0)
+  assert.equal(step.requests.refused, 0)
+  const seen = found.sarif.runs.find((entry) => entry.tool.driver.name === 'syft').properties['ci-scan/requests']
+  assert.deepEqual(seen.filter((request) => request.action !== 'internal' && request.path.includes('/ch/vs/')), [])
+})
+
+test('clean: the SBOM has no component', { skip }, async () => {
+  const found = await run(fixture('clean'))
+  assert.deepEqual(sbom(found), [])
+  assert.equal(found.steps.find((entry) => entry.id === 'syft').summary, '0 composant')
+})

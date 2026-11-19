@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { prepareData } from './data.mjs'
 import { assign, listFiles, parseDetection } from './detection.mjs'
 import { launch as docker } from './docker.mjs'
-import { findingsOf, merge, notesOf, parseSarif } from './sarif.mjs'
+import { extrasOf, findingsOf, merge, notesOf, parseSarif } from './sarif.mjs'
 import { nameMatches, readStages, readStep, readTechnologies } from './steps.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -125,6 +125,7 @@ export async function run(target, options = {}) {
     if (assigned.technologies.includes(tech.name)) stages.push(...(await readStages(tech.dir)))
   }
   const runs = []
+  const outputs = []
   for (const stage of stages) {
     const step = { id: stage.id, control: stage.control, count: null }
     steps.push(step)
@@ -143,6 +144,10 @@ export async function run(target, options = {}) {
     } else {
       try {
         const sarif = parseSarif(result.stdout)
+        const extras = extrasOf(sarif)
+        for (const output of extras.outputs) {
+          if (outputs.some((known) => known.name === output.name)) throw new Error(`a stage already gives ${output.name}`)
+        }
         const found = findingsOf(sarif, stage)
         for (const run of sarif.runs) {
           const extra = {}
@@ -153,6 +158,9 @@ export async function run(target, options = {}) {
         runs.push(...sarif.runs)
         findings.push(...found)
         notes.push(...notesOf(sarif, stage))
+        outputs.push(...extras.outputs)
+        if (extras.summary) step.summary = extras.summary
+        if (extras.outputs.length) step.outputs = extras.outputs.map((output) => output.name)
         step.count = found.length
       } catch (error) {
         findings.push(failure(stage, result, `résultat illisible (${error.message})`))
@@ -173,6 +181,7 @@ export async function run(target, options = {}) {
     findings,
     notes,
     verdict: blocked ? 'bloqué' : 'conforme',
+    outputs,
     sarif: merge(findings.filter((finding) => finding.source === 'ci-scan'), runs),
   }
 }

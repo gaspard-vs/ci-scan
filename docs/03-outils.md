@@ -53,6 +53,29 @@ Les contrôles marqués « Rapide » prennent quelques secondes. Le projet peut 
 - Le responsable de CI scan accepte chaque changement. Aujourd'hui : Anna. Plus tard : le responsable de la sécurité.
 - CI scan peut relever la gravité d'une règle de GitLab. Exemple : un contrôle de certificat désactivé est « moyen » chez GitLab, et bloquant chez nous.
 
+## L'inventaire des composants (Syft)
+
+Syft liste tous les composants du projet : la liste complète, ou SBOM.
+
+| Lu | Exemple |
+| --- | --- |
+| Fichiers de verrouillage | `package-lock.json`, `yarn.lock`, `poetry.lock` |
+| Fichiers de projet | `pom.xml` |
+| Bibliothèques livrées en fichier | un `.jar` posé dans le dépôt |
+
+- Le SBOM est au format standard CycloneDX : `sbom.cdx.json`, à côté du rapport.
+- Sur GitHub, il reste avec le résultat du scan, 90 jours au plus.
+- Il ne bloque jamais. Si Syft échoue, l'inventaire manque : le scan bloque.
+- Pour Maven, la version vient souvent d'un parent. Syft passe par le même relais qu'OSV-Scanner : seulement des fichiers POM, seulement Maven Central, jamais les paquets internes. Aucun autre réseau.
+- Les réglages du projet (`.syft.yaml`) sont ignorés.
+- Le rapport donne le nombre de composants.
+
+**Pourquoi :** une faille grave est publiée demain. Le SBOM dit quels projets ont le composant touché, sans relire leur code.
+
+**Limite :** pour Maven, seules les dépendances écrites dans `pom.xml` sont listées, avec leur version. Les dépendances des dépendances manquent : plus de 10 minutes pour `bpesvc`. OSV-Scanner, lui, les vérifie.
+
+**Plus tard :** un dépôt central des SBOM, un par projet, pour chercher une faille dans tous les projets d'un coup.
+
 ## Les vulnérabilités connues (OSV-Scanner)
 
 OSV-Scanner compare la liste des paquets du projet avec la base publique OSV. Cette base contient aussi la liste des paquets malveillants.

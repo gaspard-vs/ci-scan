@@ -18,7 +18,14 @@
 //     /data, read-only;
 //   - "proxy": its only way out. The stage is on a network with no route
 //     out, where it reaches only this proxy, at http://proxy:8080. The proxy
-//     prints one JSON line for each request.
+//     prints one JSON line for each request. "build" is the folder of the
+//     proxy, from the step folder: two stages can share one proxy.
+//
+// A stage can also give, in the properties of a SARIF run:
+//   - "ci-scan/output": one file, {"name", "content"}, such as the SBOM. The
+//     runner writes it next to the report (--out). The container itself
+//     still writes nowhere;
+//   - "ci-scan/summary": one line for the report.
 //
 // "build" is true (the Dockerfile of the step folder) or the path of another
 // step folder, to share its image.
@@ -96,8 +103,9 @@ function check(step, file, { stage }) {
     if (!valid) fail('"data" must give "file", an https "url" and "when" for each entry')
   }
   if (step.proxy !== undefined) {
-    const valid = typeof step.proxy?.build === 'string' && isInside(step.proxy.build) && isStrings(step.proxy.args)
-    if (!valid) fail('"proxy" must give "build" (a folder of the step) and "args"')
+    const build = step.proxy?.build
+    const valid = typeof build === 'string' && build !== '' && !path.isAbsolute(build) && isStrings(step.proxy.args)
+    if (!valid) fail('"proxy" must give "build" (a folder, from the step folder) and "args"')
     if (step.network === true) fail('give "network" or "proxy", not both')
   }
   if (stage && !GRAVITIES.includes(step.gravity)) fail(`"gravity" must be one of ${GRAVITIES.join(', ')}`)

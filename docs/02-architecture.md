@@ -57,6 +57,7 @@ Toutes les étapes suivent **le même contrat** :
 - si l'outil a besoin de données publiques (une base de vulnérabilités), le moteur les télécharge avant, les vérifie, et les lui donne en lecture seule ;
 - si l'outil doit demander quelque chose à l'extérieur, il passe par un relais : sa seule sortie. Le relais ne laisse passer que les demandes prévues, et note chacune ;
 - elle rend ses résultats dans un format standard (SARIF) ;
+- elle peut aussi rendre un fichier, comme l'inventaire des composants. Le moteur le range à côté du rapport. L'outil, lui, n'écrit nulle part ;
 - elle déclare son image, à version figée, et la gravité de ses résultats.
 
 Une étape qui échoue, ou dont le résultat est illisible, bloque le scan.

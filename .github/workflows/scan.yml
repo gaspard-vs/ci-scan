@@ -76,3 +76,14 @@ jobs:
       - name: Scan
         if: ${{ !cancelled() }}
         run: node ci-scan/runner/cli.mjs target --out "$RUNNER_TEMP/ci-scan"
+
+      # The SARIF and the SBOM (sbom.cdx.json) stay with the run, also when
+      # the scan blocks. GitHub keeps them 90 days at most. The central store
+      # of the SBOMs comes later.
+      # actions/upload-artifact v7.0.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ !cancelled() }}
+        with:
+          name: ci-scan
+          path: ${{ runner.temp }}/ci-scan
+          if-no-files-found: warn
