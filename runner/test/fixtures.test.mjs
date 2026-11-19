@@ -229,3 +229,55 @@ test('clean: the SBOM has no component', { skip }, async () => {
   assert.deepEqual(sbom(found), [])
   assert.equal(found.steps.find((entry) => entry.id === 'syft').summary, '0 composant')
 })
+
+// The results of the Grype stage: file, rule (package and flaw) and gravity.
+// The database changes each day: a test asks for one known flaw.
+const grype = (found) =>
+  found.findings
+    .filter((finding) => finding.source === 'grype')
+    .map((finding) => `${finding.file} ${finding.title} ${finding.gravity}`)
+
+test('sbom-jar: Grype finds the flaw of a library delivered as a .jar file, and OSV does not', { skip }, async () => {
+  const found = await run(fixture('sbom-jar'))
+  assert.ok(
+    grype(found).includes('lib/commons-text-1.9.jar org.apache.commons:commons-text@1.9 CVE-2022-42889 critical'),
+    grype(found).join('\n'),
+  )
+  assert.deepEqual(osv(found), [])
+  const step = found.steps.find((entry) => entry.id === 'grype')
+  assert.deepEqual(step.data.map((data) => data.file), ['grype/vulnerability-db.tar.zst'])
+})
+
+test('vulnerable-maven: Grype also finds Log4Shell, from the SBOM', { skip }, async () => {
+  const found = await run(fixture('vulnerable-maven'))
+  assert.ok(
+    grype(found).includes('pom.xml org.apache.logging.log4j:log4j-core@2.14.1 CVE-2021-44228 critical'),
+    grype(found).join('\n'),
+  )
+})
+
+const LODASH_GRYPE = 'package-lock.json lodash@4.17.15 CVE-2020-8203 high'
+
+test('vulnerable-npm: Grype gives the same name as OSV', { skip }, async () => {
+  const found = await run(fixture('vulnerable-npm'))
+  assert.ok(grype(found).includes(LODASH_GRYPE), grype(found).join('\n'))
+  assert.ok(osv(found).includes(LODASH), osv(found).join('\n'))
+})
+
+test('grype-silenced: the settings of the target have no effect on Grype', { skip }, async () => {
+  const found = await run(fixture('grype-silenced'))
+  assert.ok(grype(found).includes(LODASH_GRYPE), grype(found).join('\n'))
+})
+
+test('clean: Grype has nothing to check', { skip }, async () => {
+  const found = await run(fixture('clean'))
+  assert.deepEqual(found.steps.find((entry) => entry.id === 'grype').count, 0)
+})
+
+test('dev-npm: a dev package is in the SBOM, and its flaw blocks in both tools', { skip }, async () => {
+  const found = await run(fixture('dev-npm'))
+  assert.ok(sbom(found).includes('pkg:npm/lodash@4.17.15'), sbom(found).join('\n'))
+  assert.ok(grype(found).includes(LODASH_GRYPE), grype(found).join('\n'))
+  assert.ok(osv(found).includes(LODASH), osv(found).join('\n'))
+  assert.equal(found.verdict, 'bloqué')
+})

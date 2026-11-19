@@ -15,7 +15,18 @@
 //     and it does not run when the repository has none;
 //   - "data": public files that the runner downloads before the stage, when
 //     the repository has a file that needs them. The stage reads them at
-//     /data, read-only;
+//     /data, read-only. Each file comes from a "url" (the server gives its
+//     MD5) or from a "listing" (a JSON file that names the newest file and
+//     its sha256);
+//   - "prepare": {"folder", "args"}, with "data". Once a day, after the
+//     download, the image of the stage runs with these args: it reads the
+//     data at /data and writes only in an empty folder, at /prepare. No
+//     repository, no network. The stage then reads this folder at
+//     /data/<folder>. The runner reuses it the same day only when the data
+//     and the image are the same. A failure blocks the stage;
+//   - "input": the name of a file that an earlier stage gives, such as
+//     "sbom.cdx.json". The stage reads it at /input, read-only. Without
+//     this file, the stage does not run, and the scan blocks;
 //   - "proxy": its only way out. The stage is on a network with no route
 //     out, where it reaches only this proxy, at http://proxy:8080. The proxy
 //     prints one JSON line for each request. "build" is the folder of the
@@ -42,6 +53,8 @@ export const GRAVITIES = ['critical', 'high', 'medium', 'low']
 const DIGEST = /@sha256:[0-9a-f]{64}$/
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/
 const PATTERN = /^[A-Za-z0-9._*-]+$/
+// The name of a file that a stage gives: short, with no folder.
+export const OUTPUT_NAME = /^[a-z0-9][a-z0-9.-]*$/
 
 const isStrings = (value) => Array.isArray(value) && value.every((item) => typeof item === 'string')
 const isPatterns = (value) => isStrings(value) && value.length > 0 && value.every((item) => PATTERN.test(item))
@@ -91,16 +104,28 @@ function check(step, file, { stage }) {
   }
   if (step.files !== undefined && !isPatterns(step.files)) fail('"files" must be a list of file name patterns')
   if (step.data !== undefined) {
+    const isHttps = (value) => typeof value === 'string' && value.startsWith('https://')
     const valid =
       Array.isArray(step.data) &&
       step.data.every(
         (entry) =>
           isInside(entry?.file) &&
-          typeof entry.url === 'string' &&
-          entry.url.startsWith('https://') &&
+          (entry.url === undefined) !== (entry.listing === undefined) &&
+          isHttps(entry.url ?? entry.listing) &&
           isPatterns(entry.when),
       )
-    if (!valid) fail('"data" must give "file", an https "url" and "when" for each entry')
+    if (!valid) fail('"data" must give "file", an https "url" or "listing" (one only) and "when" for each entry')
+  }
+  if (step.prepare !== undefined) {
+    const valid =
+      typeof step.prepare?.folder === 'string' &&
+      OUTPUT_NAME.test(step.prepare.folder) &&
+      isStrings(step.prepare.args) &&
+      Array.isArray(step.data)
+    if (!valid) fail('"prepare" must give "folder" (a short name) and "args", with "data"')
+  }
+  if (step.input !== undefined &&!(typeof step.input === 'string' && OUTPUT_NAME.test(step.input))) {
+    fail('"input" must be the short name of a file that an earlier stage gives')
   }
   if (step.proxy !== undefined) {
     const build = step.proxy?.build

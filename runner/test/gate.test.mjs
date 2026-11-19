@@ -7,7 +7,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { annotations, text } from '../report.mjs'
-import { run } from '../run.mjs'
+import { run as runner } from '../run.mjs'
 import { nameMatches, readStages } from '../steps.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -38,16 +38,41 @@ const CLEAN = [
   { path: 'pixel.png', language: '', binary: true, mime: 'image/png', link: false },
 ]
 
+// An empty SBOM, as the Syft stage gives it.
+const SBOM = JSON.stringify({
+  version: '2.1.0',
+  runs: [{ tool: { driver: { name: 'syft' } }, results: [], properties: {
+    'ci-scan/output': { name: 'sbom.cdx.json', content: { bomFormat: 'CycloneDX', components: [] } },
+  } }],
+})
+
 // Plays the steps: `answers` gives the result of each step, by its id. A
-// stage with no answer gives no result.
+// stage with no answer gives no result; Syft gives an empty SBOM. A
+// preparation of data is not counted, and works.
 function play(answers, started = []) {
-  return async (step) => {
+  return async (step, _repo, options = {}) => {
+    if (options.prepareDir) return ok('')
     started.push(step.id)
-    const answer = answers[step.id] ?? (step.gravity ? ok(sarif()) : undefined)
+    const answer = answers[step.id] ?? (step.id === 'syft' ? ok(SBOM) : step.gravity ? ok(sarif()) : undefined)
     if (!answer) throw new Error(`unexpected step ${step.id}`)
     return answer
   }
 }
+
+// The data of the stages of CI scan, from a fake server: no network.
+const ARCHIVE = Buffer.from('a database')
+async function fakeData(url) {
+  if (url.endsWith('/latest.json')) {
+    const checksum = `sha256:${createHash('sha256').update(ARCHIVE).digest('hex')}`
+    return Response.json({ path: 'db.tar.zst', checksum, built: '2026-11-18T06:00:00Z' })
+  }
+  if (url.endsWith('/db.tar.zst')) return new Response(ARCHIVE)
+  throw new Error(`no network in the tests: ${url}`)
+}
+const testCache = await mkdtemp(path.join(os.tmpdir(), 'ci-scan-cache-'))
+
+// The runner, with the fake data unless the test gives its own.
+const run = (target, options = {}) => runner(target, { fetch: fakeData, cacheDir: testCache, ...options })
 
 const rules = (found) => found.findings.filter((finding) => finding.blocks).map((finding) => finding.rule ?? finding.title)
 
@@ -58,12 +83,13 @@ test('a clean repository passes', async () => {
   assert.equal(found.verdict, 'conforme')
   assert.deepEqual(found.findings, [])
   assert.deepEqual(found.steps, [
-    { id: 'syft', control: 'Inventaire des composants', count: 0 },
+    { id: 'syft', control: 'Inventaire des composants', count: 0, outputs: ['sbom.cdx.json'] },
     { id: 'gitleaks', control: 'Secrets', count: 0 },
     { id: 'opengrep', control: 'Analyse du code', count: 0 },
     { id: 'osv', control: 'Vulnérabilités connues', count: 0 },
     // No pom.xml: the Maven stage does not run.
     { id: 'osv-maven', control: 'Vulnérabilités connues', count: 0 },
+    { id: 'grype', control: 'Vulnérabilités connues', count: 0, data: [{ file: 'grype/vulnerability-db.tar.zst', date: '2026-11-18T06:00:00.000Z' }] },
   ])
 })
 
@@ -169,7 +195,7 @@ test('a detection that fails blocks, and the stages still run', async () => {
     launch: play({ detection: { code: 1, stdout: '', stderr: 'no image' }, gitleaks: ok(sarif()) }, started),
   })
   assert.deepEqual(rules(found), ['step-failed'])
-  assert.deepEqual(started, ['detection', 'syft', 'gitleaks', 'opengrep', 'osv'])
+  assert.deepEqual(started, ['detection', 'syft', 'gitleaks', 'opengrep', 'osv', 'grype'])
 })
 
 test('a detection that is not readable blocks', async () => {
@@ -233,12 +259,12 @@ test('a covered technology owns its files and adds its stages', async () => {
   const found = await run(fixture('clean'), { techDir, launch: play(answers, started) })
   assert.equal(found.verdict, 'conforme')
   assert.deepEqual(found.technologies, ['python'])
-  assert.deepEqual(started, ['detection', 'syft', 'gitleaks', 'opengrep', 'osv', 'lint'])
+  assert.deepEqual(started, ['detection', 'syft', 'gitleaks', 'opengrep', 'osv', 'grype', 'lint'])
 
   // Without a Python file, the stage of Python does not run.
   started.length = 0
   await run(fixture('clean'), { techDir, launch: play({ ...answers, detection: ok(lines(CLEAN)) }, started) })
-  assert.deepEqual(started, ['detection', 'syft', 'gitleaks', 'opengrep', 'osv'])
+  assert.deepEqual(started, ['detection', 'syft', 'gitleaks', 'opengrep', 'osv', 'grype'])
 })
 
 test('a stage must fix its image by digest', async () => {
@@ -279,12 +305,22 @@ test('"env", "files", "data", "proxy" and "build" of a stage are checked', async
     [{ proxy: { build: 'helper', args: [] }, network: true }, /"network" or "proxy", not both/],
     [{ image: undefined, build: '' }, /give "image" or "build"/],
     [{ build: 'other' }, /give "image" or "build"/],
+    [{ data: [{ ...data, listing: 'https://example.org/latest.json' }] }, /"data" must give/],
+    [{ data: [{ file: 'db', listing: 'http://example.org/latest.json', when: ['*'] }] }, /"data" must give/],
+    [{ input: '../sbom.json' }, /"input" must be the short name/],
+    [{ input: 'out/sbom.json' }, /"input" must be the short name/],
+    [{ prepare: { folder: 'db', args: [] } }, /"prepare" must give/],
+    [{ data: [data], prepare: { folder: '../db', args: [] } }, /"prepare" must give/],
+    [{ data: [data], prepare: { folder: 'db' } }, /"prepare" must give/],
   ]) {
     const { commonDir } = await oneStage(extra)
     await assert.rejects(readStages(commonDir), message, JSON.stringify(extra))
   }
   const { commonDir } = await oneStage({ image: undefined, build: '../other', env: { A_B: 'x' }, files: ['*.xml'], data: [data] })
   assert.equal((await readStages(commonDir)).length, 1)
+  const listed = { file: 'db', listing: 'https://example.org/latest.json', when: ['*'] }
+  const other = await oneStage({ data: [listed], prepare: { folder: 'db-ready', args: ['prepare'] }, input: 'sbom.cdx.json' })
+  assert.equal((await readStages(other.commonDir)).length, 1)
 })
 
 test('a file name pattern applies to the name of the file', () => {
@@ -428,4 +464,116 @@ test('two stages cannot give the same file', async () => {
   assert.deepEqual(rules(found), ['step-failed'])
   assert.match(found.findings[0].title, /« two ».*a stage already gives sbom\.json/)
   assert.deepEqual(found.outputs, [{ name: 'sbom.json', content: { a: 1 } }])
+})
+
+// Two stages: "one" gives a file, "two" reads it.
+async function twoStages(two) {
+  const options = await oneStage({})
+  await mkdir(path.join(options.commonDir, '20-two'))
+  const stage = { id: 'two', control: 'Essai', image: `x@sha256:${'0'.repeat(64)}`, args: [], gravity: 'high', ...two }
+  await writeFile(path.join(options.commonDir, '20-two', 'stage.json'), JSON.stringify(stage))
+  return options
+}
+
+test('a stage reads the file of an earlier stage at /input, alone', async () => {
+  const sbom = { bomFormat: 'CycloneDX', components: [{ name: 'a' }] }
+  const options = await twoStages({ input: 'sbom.cdx.json' })
+  let seen = null
+  const launch = async (step, _repo, opts) => {
+    if (step.id === 'detection') return ok(lines(CLEAN))
+    if (step.id === 'one') return ok(giving('sbom.cdx.json', sbom))
+    seen = { files: await readdir(opts.inputDir), content: JSON.parse(await readFile(path.join(opts.inputDir, 'sbom.cdx.json'), 'utf8')) }
+    return ok(sarif())
+  }
+  const found = await run(fixture('clean'), { ...options, launch })
+  assert.deepEqual(seen, { files: ['sbom.cdx.json'], content: sbom })
+  assert.equal(found.verdict, 'conforme')
+})
+
+test('a stage without its input does not run, and blocks', async () => {
+  const options = await twoStages({ input: 'sbom.cdx.json' })
+  const started = []
+  const found = await run(fixture('clean'), {
+    ...options,
+    launch: play({ detection: ok(lines(CLEAN)), one: { code: 1, stdout: '', stderr: 'syft failed' } }, started),
+  })
+  assert.deepEqual(started, ['detection', 'one'])
+  assert.deepEqual(rules(found), ['step-failed', 'step-failed'])
+  assert.match(found.findings[1].title, /« two ».*entrée : aucune étape avant elle ne donne sbom\.cdx\.json/)
+})
+
+// A stage with data from a listing, prepared once a day.
+async function preparedStage(cacheDir) {
+  const body = Buffer.from('the archive')
+  const checksum = `sha256:${createHash('sha256').update(body).digest('hex')}`
+  const fetch = async (url) =>
+    url.endsWith('latest.json') ? Response.json({ path: 'db.tar.zst', checksum, built: '2026-11-18T06:00:00Z' }) : new Response(body)
+  const options = await oneStage({
+    data: [{ file: 'db.tar.zst', listing: 'https://example.org/latest.json', when: ['*'] }],
+    prepare: { folder: 'db-ready', args: ['prepare'] },
+    args: ['scan'],
+  })
+  return { ...options, cacheDir, fetch }
+}
+
+test('the data of a stage is prepared once, then read by each scan', async () => {
+  const cacheDir = await mkdtemp(path.join(os.tmpdir(), 'ci-scan-cache-'))
+  const options = await preparedStage(cacheDir)
+  const calls = []
+  const launch = async (step, repo, opts) => {
+    if (step.id === 'detection') return ok(lines(CLEAN))
+    if (opts.prepareDir) {
+      calls.push({ prepare: path.basename(opts.prepareDir), repo, input: opts.inputDir, data: await readdir(opts.dataDir) })
+      await writeFile(path.join(opts.prepareDir, 'db'), 'ready')
+      return ok('')
+    }
+    calls.push({ scan: await readFile(path.join(opts.dataDir, 'db-ready', 'db'), 'utf8') })
+    return ok(sarif())
+  }
+  const first = await run(fixture('clean'), { ...options, launch })
+  await run(fixture('clean'), { ...options, launch })
+  assert.deepEqual(calls, [
+    { prepare: 'db-ready', repo: null, input: undefined, data: ['db-ready', 'db.tar.zst'] },
+    { scan: 'ready' },
+    { scan: 'ready' },
+  ])
+  assert.equal(first.verdict, 'conforme')
+})
+
+test('a failed preparation blocks the stage, leaves no folder, and runs again on the next scan', async () => {
+  const cacheDir = await mkdtemp(path.join(os.tmpdir(), 'ci-scan-cache-'))
+  const options = await preparedStage(cacheDir)
+  let prepared = 0
+  const launch = async (step, _repo, opts) => {
+    if (step.id === 'detection') return ok(lines(CLEAN))
+    if (opts.prepareDir) {
+      prepared += 1
+      await writeFile(path.join(opts.prepareDir, 'half'), 'x')
+      return { code: 2, stdout: '', stderr: 'grype db import: bad archive' }
+    }
+    throw new Error('the stage must not run')
+  }
+  const found = await run(fixture('clean'), { ...options, launch })
+  assert.deepEqual(rules(found), ['step-failed'])
+  assert.match(found.findings[0].title, /préparation des données : grype db import: bad archive/)
+  const day = path.join(cacheDir, 'data', (await readdir(path.join(cacheDir, 'data')))[0])
+  assert.deepEqual(await readdir(day), ['db.tar.zst'])
+  await run(fixture('clean'), { ...options, launch })
+  assert.equal(prepared, 2)
+})
+
+test('a prepared folder made from other data is prepared again', async () => {
+  const cacheDir = await mkdtemp(path.join(os.tmpdir(), 'ci-scan-cache-'))
+  const options = await preparedStage(cacheDir)
+  let prepared = 0
+  const launch = async (step, _repo, opts) => {
+    if (step.id === 'detection') return ok(lines(CLEAN))
+    if (opts.prepareDir) prepared += 1
+    return ok(opts.prepareDir ? '' : sarif())
+  }
+  await run(fixture('clean'), { ...options, launch })
+  const day = path.join(cacheDir, 'data', (await readdir(path.join(cacheDir, 'data')))[0])
+  await writeFile(path.join(day, 'db-ready.ready'), '{"image":"other"}')
+  await run(fixture('clean'), { ...options, launch })
+  assert.equal(prepared, 2)
 })

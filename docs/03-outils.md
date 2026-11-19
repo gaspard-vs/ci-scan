@@ -64,6 +64,7 @@ Syft liste tous les composants du projet : la liste complète, ou SBOM.
 | Bibliothèques livrées en fichier | un `.jar` posé dans le dépôt |
 
 - Le SBOM est au format standard CycloneDX : `sbom.cdx.json`, à côté du rapport.
+- Il liste aussi les paquets de développement : une faille y bloque comme ailleurs.
 - Sur GitHub, il reste avec le résultat du scan, 90 jours au plus.
 - Il ne bloque jamais. Si Syft échoue, l'inventaire manque : le scan bloque.
 - Pour Maven, la version vient souvent d'un parent. Syft passe par le même relais qu'OSV-Scanner : seulement des fichiers POM, seulement Maven Central, jamais les paquets internes. Aucun autre réseau.
@@ -95,6 +96,29 @@ OSV-Scanner compare la liste des paquets du projet avec la base publique OSV. Ce
 **Les paquets internes (`ch.vs.*`)** ne sont jamais demandés à Maven Central. Le relais répond à leur place, sans rien envoyer. Ils sont listés dans le rapport, « pour information » : ils sont scannés dans leur propre dépôt.
 
 **Limite :** les dépendances d'un profil Maven ne sont pas résolues. Les paquets internes d'un profil sont quand même listés.
+
+## Le second avis (Grype)
+
+Grype lit l'inventaire des composants (SBOM) fait par Syft, et le compare avec sa propre base de failles.
+
+| | OSV-Scanner | Grype |
+| --- | --- | --- |
+| Lit | Les fichiers de verrouillage, `pom.xml` | Le SBOM de Syft |
+| Bibliothèque livrée en fichier (`.jar`) | Non | Oui |
+| Dépendances des dépendances Maven | Oui | Non |
+| Base | OSV | Grype (Anchore) |
+
+- Les deux outils nomment une faille de la même façon : le paquet, sa version, et la CVE si elle existe.
+- Chacun donne ses résultats. Une faille trouvée par les deux apparaît deux fois.
+- Critique et élevé bloquent. Une faille sans gravité est élevée.
+- Grype ne lit jamais le dépôt : seulement le SBOM. Les réglages du projet (`.grype.yaml`) sont sans effet.
+- Aucun réseau.
+
+**La base :** une seule base pour tous les langages (204 Mo). Elle est téléchargée et vérifiée par son empreinte. Elle est ensuite préparée une fois par jour (environ 1 minute). Un scan prend alors quelques secondes.
+
+**Sur GitHub :** chaque scan part d'une machine neuve. Il télécharge et prépare la base : environ 1 minute de plus.
+
+**Si Syft échoue**, Grype n'a pas d'inventaire : il ne tourne pas, et le scan bloque.
 
 ## Les risques propres au code écrit par IA
 

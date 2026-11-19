@@ -55,6 +55,8 @@ Toutes les étapes suivent **le même contrat** :
 - elle n'a pas de réseau ;
 - si l'outil en a besoin, elle reçoit aussi un dossier temporaire en mémoire, vide au départ et effacé à la fin ;
 - si l'outil a besoin de données publiques (une base de vulnérabilités), le moteur les télécharge avant, les vérifie, et les lui donne en lecture seule ;
+- si ces données doivent être préparées, l'outil le fait une fois par jour, sans le dépôt et sans réseau. Il n'écrit que dans un dossier vide, que les scans du jour lisent ensuite ;
+- elle peut lire le fichier rendu par une étape d'avant, comme l'inventaire des composants. Sans ce fichier, elle ne tourne pas, et le scan bloque ;
 - si l'outil doit demander quelque chose à l'extérieur, il passe par un relais : sa seule sortie. Le relais ne laisse passer que les demandes prévues, et note chacune ;
 - elle rend ses résultats dans un format standard (SARIF) ;
 - elle peut aussi rendre un fichier, comme l'inventaire des composants. Le moteur le range à côté du rapport. L'outil, lui, n'écrit nulle part ;

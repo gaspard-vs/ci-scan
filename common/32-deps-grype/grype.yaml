@@ -1,0 +1,22 @@
+# Our settings for Grype. They replace all other settings: Grype gets this
+# file with --config and starts in /tmp. It never reads the target: it reads
+# only the SBOM that the Syft stage gave.
+
+# Grype asks nothing: no update check, no download of the database. The
+# runner downloads the database and the stage prepares it (grype db import).
+check-for-app-update: false
+db:
+  auto-update: false
+  require-update-check: false
+  validate-by-hash-on-start: true
+  validate-age: true
+  max-allowed-built-age: 120h
+external-sources:
+  enable: false
+
+# All the flaws: fixed or not, with no ignore rule and no VEX document.
+only-fixed: false
+only-notfixed: false
+ignore-wontfix: ''
+ignore: []
+vex-documents: []

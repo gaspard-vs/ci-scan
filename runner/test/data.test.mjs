@@ -103,3 +103,66 @@ test('the folders of the other days are deleted', async () => {
   await prepareData(STEP, ['package-lock.json'], { cacheDir, fetch, now: NOW })
   assert.deepEqual(await readdir(path.join(cacheDir, 'data')), ['2026-11-18'])
 })
+
+// A listing that names the newest file, as Grype gives it.
+const LISTED = {
+  id: 'grype',
+  data: [{ file: 'grype/db.tar.zst', listing: 'https://db.example/v6/latest.json', when: ['*'] }],
+}
+const sha256 = (body) => createHash('sha256').update(body).digest('hex')
+
+function listingServer(body, listing = {}) {
+  const gets = []
+  const fetch = async (url) => {
+    gets.push(url)
+    if (url === 'https://db.example/v6/latest.json') {
+      return Response.json({ path: 'db_v6.tar.zst', checksum: `sha256:${sha256(body)}`, built: '2026-11-18T06:23:17Z', ...listing })
+    }
+    if (url === 'https://db.example/v6/db_v6.tar.zst') return new Response(body)
+    return new Response(null, { status: 404 })
+  }
+  return { fetch, gets }
+}
+
+test('a listing gives the file, its sha256 and its date', async () => {
+  const cacheDir = await cache()
+  const { fetch, gets } = listingServer('grype db')
+  const data = await prepareData(LISTED, ['README.md'], { cacheDir, fetch, now: NOW })
+  assert.deepEqual(gets, ['https://db.example/v6/latest.json', 'https://db.example/v6/db_v6.tar.zst'])
+  assert.deepEqual(data.files, [{ file: 'grype/db.tar.zst', date: '2026-11-18T06:23:17.000Z' }])
+  assert.deepEqual(data.checksums, [`grype/db.tar.zst sha256:${sha256('grype db')}`])
+  assert.equal(await readFile(path.join(data.dir, 'grype', 'db.tar.zst'), 'utf8'), 'grype db')
+  // The same day, the cached file with the same sha256 is used again.
+  await prepareData(LISTED, ['README.md'], { cacheDir, fetch, now: NOW })
+  assert.equal(gets.filter((url) => url.endsWith('.zst')).length, 1)
+})
+
+test('a file that does not match the sha256 of the listing fails, and leaves no file', async () => {
+  const cacheDir = await cache()
+  const { fetch } = listingServer('grype db', { checksum: `sha256:${sha256('other')}` })
+  await assert.rejects(prepareData(LISTED, ['README.md'], { cacheDir, fetch, now: NOW }), /sha256 .*, expected/)
+  assert.deepEqual(await readdir(path.join(cacheDir, 'data', '2026-11-18', 'grype')), [])
+})
+
+test('a poisoned cache is replaced by the file of the listing', async () => {
+  const cacheDir = await cache()
+  const target = path.join(cacheDir, 'data', '2026-11-18', 'grype', 'db.tar.zst')
+  await mkdir(path.dirname(target), { recursive: true })
+  await writeFile(target, 'empty')
+  const { fetch } = listingServer('grype db')
+  await prepareData(LISTED, ['README.md'], { cacheDir, fetch, now: NOW })
+  assert.equal(await readFile(target, 'utf8'), 'grype db')
+})
+
+test('a listing with no sha256, or a path to another server, fails', async () => {
+  for (const [listing, message] of [
+    [{ checksum: 'md5:abc' }, /no "checksum" sha256/],
+    [{ checksum: undefined }, /no "checksum" sha256/],
+    [{ path: 'https://other.example/db.tar.zst' }, /"path" leaves the server/],
+    [{ path: '//other.example/db.tar.zst' }, /"path" leaves the server/],
+    [{ path: undefined }, /no "path"/],
+  ]) {
+    const { fetch } = listingServer('grype db', listing)
+    await assert.rejects(prepareData(LISTED, ['README.md'], { cacheDir: await cache(), fetch, now: NOW }), message)
+  }
+})
