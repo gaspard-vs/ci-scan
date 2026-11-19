@@ -21,6 +21,10 @@ runner ── copies of the pom.xml files ──▶ stage (OSV-Scanner)
 ## What the stage sees and what leaves
 
 - The stage sees only copies of the `pom.xml` files, not the code.
+- OSV-Scanner stops on a SNAPSHOT version and asks nothing for it. So
+  `osv_sarif.py` writes its own copies to `/tmp`, with no `-SNAPSHOT` at the
+  end of a value: `3.2.0-SNAPSHOT` is resolved as `3.2.0`. The report keeps
+  `3.2.0-SNAPSHOT` for an internal package.
 - It is on a Docker network with no route out (`--internal`). It reaches
   only the helper, as its Maven registry: `http://proxy:8080/maven2`.
 - The helper forwards only a `GET` of a `.pom` or `maven-metadata.xml`
@@ -45,3 +49,5 @@ of OSV-Scanner and in the `pom.xml` files themselves, also in a profile.
 - Each scan asks for all the POM files again: about 700 for `bpesvc`, 50 s.
 - A resolution that fails (a POM not found, a refused request) fails the
   stage: the scan blocks.
+- A public SNAPSHOT dependency is checked at its release version. If this
+  version is not on Maven Central yet, the stage fails: the scan blocks.

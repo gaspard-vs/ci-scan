@@ -169,8 +169,7 @@ class InternalInPoms(unittest.TestCase):
     def test_the_maven_mode_adds_them_once(self):
         listed = package("ch.vs.sci:core", "2.0")
         run, _ = fake(0, json.dumps(report(listed, path=os.path.join(self.dir, "api", "pom.xml"))))
-        args = Namespace(mode="maven", registry="http://proxy:8080/maven2", internal=["ch.vs."])
-        code, sarif, _ = osv_sarif.scan(args, run, self.dir)
+        code, sarif, _ = osv_sarif.scan(MAVEN, run, self.dir, tempfile.mkdtemp())
         texts = [result["message"]["text"] for result in json.loads(sarif)["runs"][0]["results"]]
         self.assertEqual(code, 0)
         self.assertEqual(texts, [
@@ -182,6 +181,80 @@ class InternalInPoms(unittest.TestCase):
         with open(os.path.join(self.dir, "api", "pom.xml"), "w") as file:
             file.write("not xml")
         self.assertEqual(osv_sarif.internal_in_poms(self.dir, ["ch.vs."]), [])
+
+
+SNAPSHOT_POM = """<?xml version="1.0" encoding="ISO-8859-1"?>
+<!-- Projet \xe9tat, 1.0-SNAPSHOT -->
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <version>2.0-SNAPSHOT</version>
+  <properties><lib.version>3.2.0-SNAPSHOT </lib.version></properties>
+  <dependencies>
+    <dependency><groupId>ch.vs.sci.cci</groupId><artifactId>sapodata</artifactId><version>${lib.version}</version></dependency>
+    <dependency><groupId>org.example</groupId><artifactId>tool-SNAPSHOT-x</artifactId><version>1.5.0-SNAPSHOT</version></dependency>
+  </dependencies>
+</project>
+"""
+
+MAVEN = Namespace(mode="maven", registry="http://proxy:8080/maven2", internal=["ch.vs."])
+
+
+class Snapshots(unittest.TestCase):
+    def setUp(self):
+        self.repo = tempfile.mkdtemp()
+        self.work = os.path.join(tempfile.mkdtemp(), "repo")
+        os.makedirs(os.path.join(self.repo, "api"))
+        self.poms = [os.path.join(self.repo, "pom.xml"), os.path.join(self.repo, "api", "pom.xml")]
+        for path in self.poms:
+            with open(path, "w", encoding="iso-8859-1") as file:
+                file.write(SNAPSHOT_POM)
+        with open(os.path.join(self.repo, "api", "Code.java"), "w") as file:
+            file.write("class Code {}")
+
+    def read(self, path):
+        with open(path, encoding="iso-8859-1") as file:
+            return file.read()
+
+    def test_the_copies_have_no_snapshot_at_the_end_of_a_value(self):
+        osv_sarif.release_copies(self.repo, self.work)
+        expected = (SNAPSHOT_POM.replace("2.0-SNAPSHOT<", "2.0<").replace("3.2.0-SNAPSHOT <", "3.2.0 <")
+                    .replace("1.5.0-SNAPSHOT<", "1.5.0<"))
+        self.assertIn("tool-SNAPSHOT-x", expected)
+        self.assertIn("<!-- Projet \xe9tat, 1.0-SNAPSHOT -->", expected)
+        for name in ("pom.xml", os.path.join("api", "pom.xml")):
+            self.assertEqual(self.read(os.path.join(self.work, name)), expected)
+        self.assertFalse(os.path.exists(os.path.join(self.work, "api", "Code.java")))
+
+    def test_the_target_files_do_not_change(self):
+        osv_sarif.release_copies(self.repo, self.work)
+        for path in self.poms:
+            self.assertEqual(self.read(path), SNAPSHOT_POM)
+
+    def test_the_maven_mode_reads_the_copies_and_gives_the_paths_of_the_target(self):
+        public = package("org.example:tool-SNAPSHOT-x", "1.5.0", groups=[{"ids": ["CVE-2026-1"], "max_severity": "8"}])
+        run, calls = fake(1, json.dumps(report(public, path=os.path.join(self.work, "api", "pom.xml"))))
+        code, sarif, _ = osv_sarif.scan(MAVEN, run, self.repo, self.work)
+        self.assertEqual(code, 0)
+        self.assertEqual(calls[0][-1], self.work)
+        self.assertTrue(os.path.exists(os.path.join(self.work, "api", "pom.xml")))
+        [result, *_] = json.loads(sarif)["runs"][0]["results"]
+        self.assertEqual(result["ruleId"], "org.example:tool-SNAPSHOT-x@1.5.0 CVE-2026-1")
+        self.assertEqual(result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"],
+                         os.path.join(self.repo, "api", "pom.xml"))
+
+    def test_an_internal_package_keeps_its_snapshot_version_once(self):
+        internal = package("ch.vs.sci.cci:sapodata", "3.2.0")
+        run, _ = fake(0, json.dumps(report(internal, path=os.path.join(self.work, "pom.xml"))))
+        _, sarif, _ = osv_sarif.scan(MAVEN, run, self.repo, self.work)
+        notes = [(result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"], result["message"]["text"])
+                 for result in json.loads(sarif)["runs"][0]["results"]]
+        text = "Paquet interne, non vérifié ici : ch.vs.sci.cci:sapodata@3.2.0-SNAPSHOT"
+        self.assertEqual(notes, [(self.poms[0], text)])
+
+    def test_the_lockfiles_mode_reads_the_target(self):
+        run, calls = fake(128)
+        osv_sarif.scan(LOCKFILES, run, self.repo, self.work)
+        self.assertEqual(calls[0][-1], self.repo)
+        self.assertFalse(os.path.exists(self.work))
 
 
 if __name__ == "__main__":

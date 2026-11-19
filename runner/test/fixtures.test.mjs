@@ -149,6 +149,21 @@ test('vulnerable-maven: bloqué by Log4Shell, through the helper only', { skip }
   assert.equal(step.requests.refused, 0)
 })
 
+test('maven-snapshot: an internal SNAPSHOT does not stop the stage, and keeps its version', { skip }, async () => {
+  const found = await run(fixture('maven-snapshot'))
+  assert.ok(
+    osv(found).includes('pom.xml org.apache.logging.log4j:log4j-core@2.14.1 CVE-2021-44228 critical'),
+    osv(found).join('\n'),
+  )
+  assert.deepEqual(
+    found.notes.map((note) => `${note.file}: ${note.title}`),
+    ['pom.xml: Paquet interne, non vérifié ici : ch.vs.example:internal-lib@3.2.0-SNAPSHOT'],
+  )
+  const seen = requests(found)
+  assert.ok(seen.some((request) => request.action === 'internal' && request.path.includes('/internal-lib/3.2.0/')))
+  assert.deepEqual(seen.filter((request) => request.action !== 'internal' && request.path.includes('/ch/vs/')), [])
+})
+
 test('maven-resolved: the parent gives the version, and the internal package never leaves', { skip }, async () => {
   const found = await run(fixture('maven-resolved'))
   // snakeyaml has no version in pom.xml: only the parent gives it.

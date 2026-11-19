@@ -6,7 +6,12 @@ Two modes:
               pom.xml is left to the mode "maven".
   maven       The pom.xml files, with their versions resolved through the
               Maven registry that --registry gives (the proxy of the stage),
-              and the local database at /data.
+              and the local database at /data. OSV-Scanner stops on a
+              SNAPSHOT version and asks nothing for it. So it reads copies
+              of the pom.xml files in /tmp, with no "-SNAPSHOT" at the end of
+              a value: 3.2.0-SNAPSHOT is resolved as 3.2.0. The report keeps
+              the paths of the target, and an internal package keeps its
+              SNAPSHOT version.
 
 OSV-Scanner ends with code 1 when it finds a flaw and with code 128 when the
 repository has no lock file. Its SARIF has no mark for the internal
@@ -27,6 +32,11 @@ import sys
 import xml.etree.ElementTree as ET
 
 REPO = "/scan/repo"
+# The copies of the pom.xml files, in the /tmp of the stage.
+WORK = "/tmp/repo"
+SNAPSHOT_SUFFIX = "-SNAPSHOT"
+# "-SNAPSHOT" at the end of the text of an element: a version or a property.
+SNAPSHOT = re.compile(rb"-SNAPSHOT(?=\s*<)")
 # Our settings, empty: the settings of the target (osv-scanner.toml) are
 # never read.
 CONFIG = "/opt/ci-scan/osv-scanner.toml"
@@ -38,7 +48,7 @@ NO_PACKAGES = 128
 BROKEN = ("Error during extraction", "failed resolution")
 
 
-def command(mode, registry=None):
+def command(mode, registry=None, target=REPO):
     args = [
         "osv-scanner", "scan", "source",
         "--recursive",
@@ -55,7 +65,31 @@ def command(mode, registry=None):
             "--data-source", "native",
             "--maven-registry", registry,
         ]
-    return args + [REPO]
+    return args + [target]
+
+
+def release_copies(repo, work):
+    """Copies each pom.xml file of repo to the same path in work, with no
+    "-SNAPSHOT" at the end of a value. The bytes stay the same otherwise:
+    the encoding of the file does not matter."""
+    for folder, _, names in os.walk(repo):
+        if "pom.xml" not in names:
+            continue
+        source = os.path.join(folder, "pom.xml")
+        target = os.path.join(work, os.path.relpath(source, repo))
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(source, "rb") as file:
+            text = file.read()
+        with open(target, "wb") as file:
+            file.write(SNAPSHOT.sub(b"", text))
+
+
+def original_paths(report, work, repo):
+    """The paths of the copies become the paths of the target."""
+    for source in report.get("results") or []:
+        path = source.get("source", {}).get("path", "")
+        if path == work or path.startswith(work + "/"):
+            source["source"]["path"] = repo + path[len(work):]
 
 
 def main_id(ids):
@@ -131,7 +165,9 @@ def internal_note(name, version, uri):
     }
 
 
-def convert(report, internal=()):
+def convert(report, internal=(), snapshots=frozenset()):
+    """snapshots: the (name, version) of the internal packages whose version
+    in the target is version + "-SNAPSHOT"."""
     rules = {}
     results = []
     for source in report.get("results") or []:
@@ -142,6 +178,8 @@ def convert(report, internal=()):
             name = package.get("name", "?")
             version = package.get("version", "")
             if internal and is_internal(name, internal):
+                if (name, version) in snapshots:
+                    version += SNAPSHOT_SUFFIX
                 results.append(internal_note(name, version, uri))
                 continue
             summaries = {v.get("id"): v.get("summary") or v.get("details", "")[:200]
@@ -191,9 +229,13 @@ def convert(report, internal=()):
     }
 
 
-def scan(args, run=subprocess.run, repo=REPO):
+def scan(args, run=subprocess.run, repo=REPO, work=WORK):
     """Gives (exit code, SARIF text or None, error text)."""
-    done = run(command(args.mode, args.registry), capture_output=True, text=True)
+    target = repo
+    if args.mode == "maven":
+        release_copies(repo, work)
+        target = work
+    done = run(command(args.mode, args.registry, target), capture_output=True, text=True)
     # No lock file: nothing to check. OSV-Scanner then also complains that
     # it has no database, which does not matter.
     if done.returncode == NO_PACKAGES:
@@ -207,11 +249,17 @@ def scan(args, run=subprocess.run, repo=REPO):
         report = json.loads(done.stdout)
     except ValueError as error:
         return 2, None, f"osv-scanner: JSON illisible ({error})"
-    sarif = convert(report, args.internal)
-    if args.mode == "maven" and args.internal:
+    if args.mode != "maven":
+        return 0, json.dumps(convert(report, args.internal)), ""
+    original_paths(report, work, repo)
+    in_poms = internal_in_poms(repo, args.internal) if args.internal else []
+    snapshots = {(name, version[:-len(SNAPSHOT_SUFFIX)])
+                 for _, name, version in in_poms if version.endswith(SNAPSHOT_SUFFIX)}
+    sarif = convert(report, args.internal, snapshots)
+    if in_poms:
         results = sarif["runs"][0]["results"]
         listed = {result["message"]["text"] for result in results if result.get("kind") == "informational"}
-        for path, name, version in internal_in_poms(repo, args.internal):
+        for path, name, version in in_poms:
             note = internal_note(name, version, path)
             if note["message"]["text"] not in listed:
                 listed.add(note["message"]["text"])
