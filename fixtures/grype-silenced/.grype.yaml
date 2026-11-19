@@ -1,0 +1,7 @@
+# The target tries to hide its flaws from Grype.
+only-fixed: true
+ignore:
+  - package:
+      name: lodash
+  - vulnerability: CVE-2020-8203
+    include-aliases: true

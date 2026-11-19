@@ -4,11 +4,14 @@ import { createHash, randomBytes } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
-// Where a step finds the repository, its own folder and its data, all
-// read-only.
+// Where a step finds the repository, its own folder, its data and the file
+// of an earlier stage, all read-only.
 export const REPO_MOUNT = '/scan/repo'
 export const STAGE_MOUNT = '/stage'
 export const DATA_MOUNT = '/data'
+export const INPUT_MOUNT = '/input'
+// The only folder where the preparation of the data can write.
+export const PREPARE_MOUNT = '/prepare'
 
 function exec(command, args, { timeout } = {}) {
   return new Promise((resolve) => {
@@ -147,19 +150,46 @@ function requestsOf(stdout) {
   return requests
 }
 
+// What the image of a step comes from: its digest, or the hash of the
+// folder that builds it. A prepared folder is reused only with the same
+// image.
+export async function imageKey(step) {
+  if (step.image) return step.image
+  const dir = step.build === true ? step.dir : path.resolve(step.dir, step.build)
+  return `build:${await folderHash(dir)}`
+}
+
+// Prepares the data of a stage, once a day: the image of the stage, with
+// "prepare.args", reads the data at /data and writes in prepareDir only,
+// at /prepare. No repository, no input, no network.
+async function prepare(step, image, { timeout, dataDir, prepareDir }) {
+  const args = [
+    'run', '--rm', ...closed(step),
+    '--volume', `${step.dir}:${STAGE_MOUNT}:ro`,
+    '--volume', `${dataDir}:${DATA_MOUNT}:ro`,
+    '--volume', `${prepareDir}:${PREPARE_MOUNT}`,
+    '--network', 'none',
+    image, ...step.prepare.args,
+  ]
+  return exec('docker', args, { timeout })
+}
+
 // Runs one step on one repository. The container cannot write anywhere
 // (except an empty /tmp in memory, if the step asks for it), has no
 // privilege and has no network: unless the step asks for the network, or
 // for a proxy, its only way out. The result leaves on the standard output.
-export async function launch(step, repo, { timeout, dataDir } = {}) {
+// With prepareDir, it prepares the data of the stage instead.
+export async function launch(step, repo, { timeout, dataDir, inputDir, prepareDir } = {}) {
   const { image, error } = await imageOf(step)
   if (error) return { code: null, stdout: '', stderr: error }
+  if (prepareDir) return prepare(step, image, { timeout, dataDir, prepareDir })
   const args = [
     'run', '--rm', ...closed(step),
     '--volume', `${repo}:${REPO_MOUNT}:ro`,
     '--volume', `${step.dir}:${STAGE_MOUNT}:ro`,
   ]
   if (dataDir) args.push('--volume', `${dataDir}:${DATA_MOUNT}:ro`)
+  if (inputDir) args.push('--volume', `${inputDir}:${INPUT_MOUNT}:ro`)
   for (const [name, value] of Object.entries(step.env ?? {})) args.push('--env', `${name}=${value}`)
   if (!step.proxy) {
     if (!step.network) args.push('--network', 'none')

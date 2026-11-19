@@ -3,13 +3,13 @@
 // The gate is closed. All that the runner cannot check blocks: a file with
 // no owner, a technology that CI scan does not cover, a step that fails or
 // gives a result that the runner cannot read.
-import { copyFile, lstat, mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { prepareData } from './data.mjs'
 import { assign, listFiles, parseDetection } from './detection.mjs'
-import { launch as docker } from './docker.mjs'
+import { launch as docker, imageKey } from './docker.mjs'
 import { extrasOf, findingsOf, merge, notesOf, parseSarif } from './sarif.mjs'
 import { nameMatches, readStages, readStep, readTechnologies } from './steps.mjs'
 
@@ -52,9 +52,41 @@ function summary(requests) {
   }
 }
 
-// Runs one stage: its files, its data, its container. Gives its result, or
-// the reason why it could not run.
-async function runStage(stage, repo, files, { launch, timeout, cacheDir, fetch }) {
+// Prepares the data of a stage in the folder of the day, once: a mark next
+// to the folder names the data and the image that prepared it. Gives the
+// reason of a failure, or nothing.
+async function prepareFolder(stage, data, { launch, timeout }) {
+  const folder = path.join(data.dir, stage.prepare.folder)
+  const mark = `${folder}.ready`
+  const key = JSON.stringify({ image: await imageKey(stage), args: stage.prepare.args, data: data.checksums })
+  if ((await readFile(mark, 'utf8').catch(() => null)) === key) return null
+  await rm(mark, { force: true })
+  await rm(folder, { recursive: true, force: true })
+  await mkdir(folder)
+  const result = await launch(stage, null, { timeout, dataDir: data.dir, prepareDir: folder })
+  if (result.code !== 0) {
+    await rm(folder, { recursive: true, force: true })
+    return `préparation des données : ${result.stderr.trim().split('\n').pop() || `code ${result.code}`}`
+  }
+  await writeFile(mark, key)
+  return null
+}
+
+// Writes the file that an earlier stage gave into a new folder, alone.
+async function writeInput({ name, content }) {
+  const dir = await realpath(await mkdtemp(path.join(os.tmpdir(), 'ci-scan-input-')))
+  await writeFile(path.join(dir, name), typeof content === 'string' ? content : JSON.stringify(content))
+  return dir
+}
+
+// Runs one stage: its input, its files, its data, its container. Gives its
+// result, or the reason why it could not run.
+async function runStage(stage, repo, files, outputs, { launch, timeout, cacheDir, fetch }) {
+  let input = null
+  if (stage.input) {
+    input = outputs.find((output) => output.name === stage.input)
+    if (!input) return { reason: `entrée : aucune étape avant elle ne donne ${stage.input}` }
+  }
   let data = null
   if (stage.data) {
     try {
@@ -63,13 +95,23 @@ async function runStage(stage, repo, files, { launch, timeout, cacheDir, fetch }
       return { reason: `données : ${error.message}` }
     }
   }
-  let copied = null
-  if (stage.files) copied = await copyFiles(repo, files.filter((file) => stage.files.some((p) => nameMatches(file, p))))
+  if (data && stage.prepare) {
+    const reason = await prepareFolder(stage, data, { launch, timeout })
+    if (reason) return { reason, data }
+  }
+  const folders = []
   try {
-    const result = await launch(stage, copied ?? repo, { timeout, dataDir: data?.dir })
+    let copied = null
+    if (stage.files) {
+      copied = await copyFiles(repo, files.filter((file) => stage.files.some((p) => nameMatches(file, p))))
+      folders.push(copied)
+    }
+    const inputDir = input ? await writeInput(input) : undefined
+    if (inputDir) folders.push(inputDir)
+    const result = await launch(stage, copied ?? repo, { timeout, dataDir: data?.dir, inputDir })
     return { result, data }
   } finally {
-    if (copied) await rm(copied, { recursive: true, force: true })
+    for (const folder of folders) await rm(folder, { recursive: true, force: true })
   }
 }
 
@@ -134,7 +176,7 @@ export async function run(target, options = {}) {
       step.count = 0
       continue
     }
-    const { result, data, reason } = await runStage(stage, repo, files, { launch, timeout, cacheDir, fetch })
+    const { result, data, reason } = await runStage(stage, repo, files, outputs, { launch, timeout, cacheDir, fetch })
     if (data) step.data = data.files
     if (result?.requests) step.requests = summary(result.requests)
     if (reason) {

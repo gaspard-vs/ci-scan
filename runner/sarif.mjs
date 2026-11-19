@@ -1,5 +1,6 @@
 // Reads the SARIF result of a stage.
 import { REPO_MOUNT } from './docker.mjs'
+import { OUTPUT_NAME } from './steps.mjs'
 
 export function parseSarif(stdout) {
   const sarif = JSON.parse(stdout)
@@ -80,8 +81,6 @@ export function notesOf(sarif, stage) {
   }
   return notes
 }
-
-const OUTPUT_NAME = /^[a-z0-9][a-z0-9.-]*$/
 
 // What a stage gives beside its results, in the properties of its runs:
 //   - "ci-scan/output": a file, {"name", "content"}. The runner writes it
