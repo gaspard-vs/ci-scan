@@ -9,12 +9,18 @@ function list(names) {
   return names.length ? names.join(', ') : 'aucune'
 }
 
+// A covered technology with no stage of its own says so.
+function covered(result) {
+  if (!result.coverage) return list(result.technologies)
+  return list(result.coverage.map((tech) => (tech.commonOnly ? `${tech.label} (contrôles communs seulement)` : tech.label)))
+}
+
 export function text(result) {
   const lines = [
     `CI scan : ${result.repo}`,
     '',
     `Fichiers détectés : ${result.files}`,
-    `Technologies couvertes : ${list(result.technologies)}`,
+    `Technologies couvertes : ${covered(result)}`,
     `Technologies non couvertes : ${list(result.uncovered)}`,
     '',
     'Étapes :',

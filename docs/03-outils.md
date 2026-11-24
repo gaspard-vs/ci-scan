@@ -25,6 +25,31 @@ Deux outils pour les secrets et pour les vulnérabilités : ce sont les deux ris
 
 ## Scan par technologie
 
+Les technologies couvertes aujourd'hui :
+
+| Technologie | Types de fichiers | Contrôles |
+| --- | --- | --- |
+| Java | Java, Maven POM | Communs seulement |
+| JavaScript | JavaScript, TypeScript, HTML, CSS, SCSS | Communs seulement |
+| Shell | Shell, Batchfile | Communs seulement |
+| Docker | Dockerfile | Communs seulement |
+| Python | Python | Communs seulement |
+| SQL | SQL | Communs seulement |
+
+« Communs seulement » : les contrôles de tout dépôt (secrets, analyse du code, vulnérabilités connues, inventaire). Le rapport l'écrit à côté de la technologie.
+
+Sont aussi reconnus :
+
+| Types de fichiers | Propriétaire |
+| --- | --- |
+| XML, JSON avec commentaires, Browserslist | Fichiers de réglage, lus par les contrôles communs |
+| `.nvmrc`, `.node-version`, `.env-sample`, `.env.example` (par leur nom) | Fichiers de réglage |
+| Gherkin (scénarios de test), SVG, un fichier vide | Types sans risque |
+
+Un vrai fichier `.env` reste sans propriétaire : il bloque.
+
+Les contrôles propres à venir :
+
 | Technologie | Contrôle | Outil | Pourquoi lui | Rapide |
 | --- | --- | --- | --- | --- |
 | Java | Analyse du code | SpotBugs + FindSecBugs | La référence libre pour la sécurité Java. |  |

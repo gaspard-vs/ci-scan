@@ -1,12 +1,15 @@
 {
   "inert": {
-    "languages": ["Markdown", "Text"],
+    "languages": ["Markdown", "Text", "Gherkin", "SVG"],
+    "empty": true,
     "mimes": ["image/png", "image/jpeg", "image/gif", "image/webp", "image/x-icon"]
   },
   "configuration": {
     "languages": [
       "YAML", "JSON", "TOML", "INI", "Java Properties",
-      "Ignore List", "Git Attributes", "EditorConfig"
-    ]
+      "Ignore List", "Git Attributes", "EditorConfig",
+      "XML", "JSON with Comments", "Browserslist"
+    ],
+    "names": [".nvmrc", ".node-version", ".env-sample", ".env.example"]
   }
 }

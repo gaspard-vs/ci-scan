@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Read `HANDOFF.md` first, then `docs/`.
+Read `.maia/notes.md` first (the plan and the handoff), then `docs/`.
 
 ## Commits
 

@@ -47,8 +47,22 @@ test('own-config: the settings of the target have no effect', { skip }, async ()
 
 test('unknown-tech: bloqué, technologie non couverte', { skip }, async () => {
   const found = await run(fixture('unknown-tech'))
-  assert.deepEqual(blocking(found), ['tool.py: uncovered-technology'])
-  assert.deepEqual(found.uncovered, ['Python'])
+  assert.deepEqual(blocking(found), ['tool.rs: uncovered-technology'])
+  assert.deepEqual(found.uncovered, ['Rust'])
+})
+
+test('java-common: conforme, Java with the common stages only', { skip }, async () => {
+  const found = await run(fixture('java-common'))
+  assert.deepEqual(found.findings, [])
+  assert.equal(found.verdict, 'conforme')
+  assert.deepEqual(found.coverage, [{ name: 'java', label: 'Java', commonOnly: true }])
+})
+
+test('javascript-common: conforme, JavaScript, TypeScript, HTML, CSS and SCSS with the common stages only', { skip }, async () => {
+  const found = await run(fixture('javascript-common'))
+  assert.deepEqual(found.findings, [])
+  assert.equal(found.verdict, 'conforme')
+  assert.deepEqual(found.coverage, [{ name: 'javascript', label: 'JavaScript', commonOnly: true }])
 })
 
 test('unowned-file: bloqué, fichier sans propriétaire', { skip }, async () => {
