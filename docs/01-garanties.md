@@ -17,7 +17,7 @@ Aucun projet n'échappe au scan. Aucune technologie non plus.
 
 1. **CI scan détecte les technologies lui-même.** Il reconnaît Java, JavaScript, etc. par les fichiers présents. Le projet commence à utiliser Java : Java est scanné.
 2. **Chaque fichier a un propriétaire.** Soit une technologie connue, soit un type sans risque (texte, image). Cette liste appartient à CI scan.
-3. **Une technologie inconnue bloque.** Un projet ajoute du Python et CI scan ne connaît pas Python : le scan échoue avec « technologie non couverte ». Quelqu'un ajoute alors Python à CI scan.
+3. **Une technologie inconnue bloque.** Un projet ajoute du Rust et CI scan ne connaît pas Rust : le scan échoue avec « technologie non couverte ». Quelqu'un ajoute alors Rust à CI scan.
 4. **CI scan ne lit aucun réglage dans le projet.** Le projet ne peut pas s'accorder une exception. Les fichiers de réglage d'un outil, placés dans le projet, sont sans effet.
 5. **Les commentaires qui font taire un outil sont sans effet.** Ils seront signalés dans le rapport (à construire).
 6. **CI scan va chercher le code.** Il lit la liste des dépôts et les scanne, depuis GitHub d'abord. Le projet ne peut pas retirer le scan de sa propre chaîne.

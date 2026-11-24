@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { prepareData } from './data.mjs'
-import { assign, listFiles, parseDetection } from './detection.mjs'
+import { assign, emptyFiles, listFiles, parseDetection } from './detection.mjs'
 import { launch as docker, imageKey } from './docker.mjs'
 import { extrasOf, findingsOf, merge, notesOf, parseSarif } from './sarif.mjs'
 import { nameMatches, readStages, readStep, readTechnologies } from './steps.mjs'
@@ -148,7 +148,7 @@ export async function run(target, options = {}) {
     findings.push(failure(detection, counted))
   } else {
     try {
-      assigned = assign(files, parseDetection(counted.stdout), owners, technologies)
+      assigned = assign(files, parseDetection(counted.stdout), owners, technologies, await emptyFiles(repo, files))
     } catch (error) {
       findings.push(failure(detection, counted, `résultat illisible (${error.message})`))
     }
@@ -162,9 +162,14 @@ export async function run(target, options = {}) {
   }
 
   // 2. The common stages, then the stages of each technology found.
+  // A technology with no stage of its own has the common stages only.
   const stages = await readStages(commonDir)
+  const coverage = []
   for (const tech of technologies) {
-    if (assigned.technologies.includes(tech.name)) stages.push(...(await readStages(tech.dir)))
+    if (!assigned.technologies.includes(tech.name)) continue
+    const ownStages = await readStages(tech.dir)
+    stages.push(...ownStages)
+    coverage.push({ name: tech.name, label: tech.label, commonOnly: !ownStages.length })
   }
   const runs = []
   const outputs = []
@@ -218,6 +223,7 @@ export async function run(target, options = {}) {
     repo,
     files: files.length,
     technologies: assigned.technologies,
+    coverage,
     uncovered: [...assigned.uncovered.keys()].sort(),
     steps,
     findings,

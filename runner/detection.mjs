@@ -1,6 +1,6 @@
 // The detection: each file of the repository must have an owner. The owner is a
 // technology that CI scan covers, or a kind of file listed in the policy.
-import { readdir } from 'node:fs/promises'
+import { lstat, readdir } from 'node:fs/promises'
 import path from 'node:path'
 
 // All the files of the repository, as the runner sees them. The detection of
@@ -22,6 +22,16 @@ export async function listFiles(repo) {
   return files.sort()
 }
 
+// The empty files of the repository. A symbolic link is never one.
+export async function emptyFiles(repo, files) {
+  const empty = new Set()
+  for (const file of files) {
+    const info = await lstat(path.join(repo, file))
+    if (info.isFile() && info.size === 0) empty.add(file)
+  }
+  return empty
+}
+
 // The output of the detection container: one JSON line per file.
 export function parseDetection(stdout) {
   const entries = new Map()
@@ -38,7 +48,9 @@ export function parseDetection(stdout) {
 //   technologies: the names of the covered technologies found in the repository
 //   uncovered:    language -> files, for the languages that nobody owns
 //   unowned:      files that the detection cannot name, with the reason
-export function assign(files, entries, policy, technologies) {
+// A text file with no language has an owner only when it is empty (if the
+// policy says so) or when the policy names it (the whole file name).
+export function assign(files, entries, policy, technologies, empty = new Set()) {
   const byLanguage = new Map()
   for (const tech of technologies) {
     for (const language of tech.languages) byLanguage.set(language, tech.name)
@@ -46,6 +58,7 @@ export function assign(files, entries, policy, technologies) {
   const inert = new Set(policy.inert.languages)
   const inertMimes = new Set(policy.inert.mimes)
   const configuration = new Set(policy.configuration.languages)
+  const names = new Set(policy.configuration.names ?? [])
 
   const found = new Set()
   const uncovered = new Map()
@@ -64,6 +77,10 @@ export function assign(files, entries, policy, technologies) {
         if (!uncovered.has(language)) uncovered.set(language, [])
         uncovered.get(language).push(file)
       }
+    } else if (!entry.binary && policy.inert.empty && empty.has(file)) {
+      // An empty file holds nothing.
+    } else if (!entry.binary && names.has(path.posix.basename(file))) {
+      // A configuration file known by its name.
     } else if (!(entry.binary && inertMimes.has(entry.mime))) {
       unowned.push({ file, reason: entry.binary ? 'binaire de type inconnu' : 'type de fichier inconnu' })
     }

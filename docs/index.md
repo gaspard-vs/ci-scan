@@ -15,7 +15,7 @@ Un scanner de sécurité unique pour tous les projets, en particulier ceux écri
 | Inventaire des composants (Syft) | Construit |
 | Le scan obligatoire sur GitHub ([mise en place](setup.html)) | Construit, sur un dépôt d'essai |
 | Les autres contrôles | À construire |
-| Java et JavaScript | À construire. D'ici là, leur code bloque : « technologie non couverte ». |
+| Java, JavaScript, Shell, Docker, Python, SQL | Couverts par les contrôles communs seulement. Leurs contrôles propres : à construire. |
 | Le rapport d'une page pour le responsable | À construire. D'ici là, un rapport en texte. |
 
 ## Le besoin

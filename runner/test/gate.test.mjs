@@ -8,7 +8,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { annotations, text } from '../report.mjs'
 import { run as runner } from '../run.mjs'
-import { nameMatches, readStages } from '../steps.mjs'
+import { nameMatches, readStages, readTechnologies } from '../steps.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const fixture = (name) => path.join(ROOT, 'fixtures', name)
@@ -213,11 +213,78 @@ test('a file that the detection does not name has no owner', async () => {
 })
 
 test('a technology that CI scan does not cover blocks, once for each language', async () => {
-  const detection = [...CLEAN.slice(1), file('README.md', 'Python'), file('pixel.png', 'Python')]
+  const detection = [...CLEAN.slice(1), file('README.md', 'Rust'), file('pixel.png', 'Rust')]
   const found = await run(fixture('clean'), { launch: play({ detection: ok(lines(detection)), gitleaks: ok(sarif()) }) })
   assert.deepEqual(rules(found), ['uncovered-technology'])
-  assert.equal(found.findings[0].title, 'Technologie non couverte : Python (2 fichiers)')
-  assert.deepEqual(found.uncovered, ['Python'])
+  assert.equal(found.findings[0].title, 'Technologie non couverte : Rust (2 fichiers)')
+  assert.deepEqual(found.uncovered, ['Rust'])
+})
+
+// The kinds of files found in the BPE projects on 2026-11-19. Each has one
+// owner: a technology, a configuration kind or a kind without risk.
+const BPE_KINDS = {
+  Java: 'java', 'Maven POM': 'java',
+  JavaScript: 'javascript', TypeScript: 'javascript', HTML: 'javascript', CSS: 'javascript', SCSS: 'javascript',
+  Shell: 'shell', Batchfile: 'shell', Dockerfile: 'docker', Python: 'python', SQL: 'sql',
+  XML: 'configuration', 'JSON with Comments': 'configuration', Browserslist: 'configuration',
+  Gherkin: 'inert', SVG: 'inert',
+}
+
+test('each kind of file of the BPE projects has one owner', async () => {
+  const technologies = await readTechnologies(path.join(ROOT, 'tech'))
+  const policy = JSON.parse(await readFile(path.join(ROOT, 'policy', 'owners.json'), 'utf8'))
+  for (const [language, expected] of Object.entries(BPE_KINDS)) {
+    const owners = technologies.filter((tech) => tech.languages.includes(language)).map((tech) => tech.name)
+    if (policy.configuration.languages.includes(language)) owners.push('configuration')
+    if (policy.inert.languages.includes(language)) owners.push('inert')
+    assert.deepEqual(owners, [expected], language)
+  }
+})
+
+test('an empty file, .nvmrc and .env-sample have an owner; .env and a full .gitkeep do not', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'ci-scan-names-'))
+  const content = {
+    'assets/.gitkeep': '',
+    'full/.gitkeep': 'not empty\n',
+    '.nvmrc': '22\n',
+    '.env-sample': 'DB_HOST=\n',
+    '.env': 'DB_HOST=db\n',
+  }
+  for (const [name, text] of Object.entries(content)) {
+    await mkdir(path.dirname(path.join(repo, name)), { recursive: true })
+    await writeFile(path.join(repo, name), text)
+  }
+  const detection = Object.keys(content).map((name) => file(name, ''))
+  const found = await run(repo, { launch: play({ detection: ok(lines(detection)), gitleaks: ok(sarif()) }) })
+  assert.deepEqual(
+    found.findings.map((finding) => finding.file).sort(),
+    ['.env', 'full/.gitkeep'],
+  )
+})
+
+test('a language with two technologies is refused', async () => {
+  const techDir = await mkdtemp(path.join(os.tmpdir(), 'ci-scan-tech-'))
+  for (const name of ['one', 'two']) {
+    await mkdir(path.join(techDir, name))
+    await writeFile(path.join(techDir, name, 'tech.json'), JSON.stringify({ languages: ['Rust'] }))
+  }
+  await assert.rejects(readTechnologies(techDir), /Rust is already owned by one/)
+})
+
+test('a technology with no stage of its own has the common stages only, and the report says so', async () => {
+  const techDir = await mkdtemp(path.join(os.tmpdir(), 'ci-scan-tech-'))
+  await mkdir(path.join(techDir, 'rust'))
+  await writeFile(path.join(techDir, 'rust', 'tech.json'), JSON.stringify({ name: 'Rust', languages: ['Rust'] }))
+  const started = []
+  const detection = [...CLEAN.slice(1), file('README.md', 'Rust')]
+  const found = await run(fixture('clean'), {
+    techDir,
+    launch: play({ detection: ok(lines(detection)), gitleaks: ok(sarif()) }, started),
+  })
+  assert.equal(found.verdict, 'conforme')
+  assert.deepEqual(found.coverage, [{ name: 'rust', label: 'Rust', commonOnly: true }])
+  assert.deepEqual(started, ['detection', 'syft', 'gitleaks', 'opengrep', 'osv', 'grype'])
+  assert.match(text(found), /^Technologies couvertes : Rust \(contrôles communs seulement\)$/m)
 })
 
 test('a symbolic link, an unknown text and an unknown binary have no owner', async () => {

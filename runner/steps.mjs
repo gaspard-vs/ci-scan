@@ -173,9 +173,11 @@ export async function readStages(dir) {
 }
 
 // The technologies that CI scan covers: one folder each, with the languages
-// that it owns.
+// that it owns and the name shown in the report (the folder name if none).
+// A language has one owner only.
 export async function readTechnologies(dir) {
   const technologies = []
+  const owners = new Map()
   for (const name of await folders(dir)) {
     const file = path.join(dir, name, 'tech.json')
     const tech = await readJson(file)
@@ -183,7 +185,11 @@ export async function readTechnologies(dir) {
     if (!Array.isArray(tech.languages) || !tech.languages.length) {
       throw new Error(`${file}: "languages" must be a list`)
     }
-    technologies.push({ name, languages: tech.languages, dir: path.join(dir, name) })
+    for (const language of tech.languages) {
+      if (owners.has(language)) throw new Error(`${file}: ${language} is already owned by ${owners.get(language)}`)
+      owners.set(language, name)
+    }
+    technologies.push({ name, label: tech.name ?? name, languages: tech.languages, dir: path.join(dir, name) })
   }
   return technologies
 }

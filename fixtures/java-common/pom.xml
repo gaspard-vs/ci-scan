@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture: Java with nothing wrong. Java has only the common stages. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>ch.example</groupId>
+  <artifactId>java-common</artifactId>
+  <version>1.0.0</version>
+</project>
