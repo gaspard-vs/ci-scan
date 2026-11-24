@@ -16,7 +16,7 @@ Un scanner de sécurité unique pour tous les projets, en particulier ceux écri
 | Le scan obligatoire sur GitHub ([mise en place](setup.html)) | Construit, sur un dépôt d'essai |
 | Les autres contrôles | À construire |
 | Java, JavaScript, Shell, Docker, Python, SQL | Couverts par les contrôles communs seulement. Leurs contrôles propres : à construire. |
-| Le rapport d'une page pour le responsable | À construire. D'ici là, un rapport en texte. |
+| Le rapport d'une page pour le responsable (`rapport.md`) | Construit. Le conseil et la correction attendue : à construire. |
 
 ## Le besoin
 
