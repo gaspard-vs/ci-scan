@@ -43,6 +43,10 @@ nothing, and the stage lists all.
 Our settings drop the components of type "file": the SBOM lists packages
 only.
 
+The npm dev packages are listed too (`include-dev-dependencies`): a flaw
+in a dev package blocks like any other, and Grype reads this SBOM. Without
+them, `bpeui` had 176 components instead of 1379 (fixture `dev-npm`).
+
 ## Maven versions
 
 A Quarkus or Spring project writes almost no version in `pom.xml`: the

@@ -21,6 +21,8 @@ java:
   max-parent-recursive-depth: 10
 javascript:
   search-remote-licenses: false
+  # The dev packages too: a flaw in a dev package blocks like any other.
+  include-dev-dependencies: true
 golang:
   search-remote-licenses: false
 python:

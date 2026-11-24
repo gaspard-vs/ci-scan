@@ -20,7 +20,8 @@
 | Emplacement | Un dépôt à part, sur GitHub, géré par la sécurité. | Les projets et leurs IA ne peuvent pas le modifier. |
 | Règles d'analyse du code | Les règles libres de GitLab, mises à jour chaque mois. Nos règles seulement pour les manques, chacune avec son test. | Des règles écrites seules sont fragiles. GitLab les maintient pour tous ses clients. |
 | Réseau des outils | Aucun outil qui lit le code n'a de réseau. Une exception encadrée : la résolution Maven (OSV-Scanner et Syft) passe par un relais qui ne laisse sortir que des demandes de fichiers POM vers Maven Central. | Un outil, même piégé ou trop bavard, ne peut rien envoyer. |
-| Base des vulnérabilités | Téléchargée avant le scan, seulement pour les écosystèmes du projet. Chaque fichier est vérifié par son empreinte (MD5) donnée par OSV, même s'il vient du cache. | Un cache peut être empoisonné par un workflow du projet scanné. |
+| Base des vulnérabilités | Téléchargée avant le scan. OSV : seulement pour les écosystèmes du projet. Chaque fichier est vérifié par son empreinte (MD5 pour OSV, sha256 pour Grype), même s'il vient du cache. | Un cache peut être empoisonné par un workflow du projet scanné. |
+| Second avis sur les failles | Grype lit le SBOM de Syft. Sa base est préparée une fois par jour, sans réseau et sans le projet. | Grype voit les bibliothèques livrées en fichier. Préparer la base à chaque scan prendrait 40 s et 3,5 Go de mémoire. |
 | Paquets de développement | Une faille bloque comme toute autre faille. | Un outil de développement tourne sur le poste et dans la chaîne de construction. |
 | Paquets internes (`ch.vs.*`) | Jamais demandés à Maven Central. Listés dans le rapport, pour information. | Ils sont scannés dans leur propre dépôt. Leur nom ne sort pas. |
 | Inventaire des composants (SBOM) | Écrit à chaque scan par Syft, au format CycloneDX, à côté du rapport. Gardé hors du projet. Ne bloque jamais. | Savoir vite quels projets touche une faille publiée plus tard. Écrire dans le projet demanderait un droit d'écriture, que CI scan n'a pas. |
@@ -54,6 +55,8 @@ Pour les vulnérabilités connues :
 | Écrire notre propre résolveur Maven | Les règles de Maven sont nombreuses. Une petite erreur donne une liste fausse qui a l'air juste. |
 | Le cache GitHub de CI scan | GitHub ne le permet pas : le scan tourne au nom du projet scanné. |
 | Les paquets de développement un niveau plus bas | Refusé : ils tournent aussi, sur le poste et dans la construction. |
+| Grype lit le dépôt lui-même | Il referait l'inventaire de Syft, et la résolution Maven. Avec le SBOM, les deux disent la même chose. |
+| Fusionner les résultats d'OSV et de Grype | Plus tard, avec la page du rapport. Aujourd'hui, chaque outil donne ses résultats. |
 
 ## À vérifier
 

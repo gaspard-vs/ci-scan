@@ -1,0 +1,14 @@
+{
+  "id": "grype",
+  "control": "Vulnérabilités connues",
+  "build": true,
+  "version": "v0.121.1",
+  "tmp": true,
+  "input": "sbom.cdx.json",
+  "data": [
+    { "file": "grype/vulnerability-db.tar.zst", "listing": "https://grype.anchore.io/databases/v6/latest.json", "when": ["*"] }
+  ],
+  "prepare": { "folder": "grype-db", "args": ["prepare"] },
+  "args": ["scan"],
+  "gravity": "high"
+}
