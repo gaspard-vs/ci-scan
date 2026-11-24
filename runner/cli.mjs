@@ -3,14 +3,14 @@
 //
 //   node runner/cli.mjs <repository> [--out <folder>]
 //
-// --out receives ci-scan.sarif and the files that the stages give
-// (sbom.cdx.json).
+// --out receives rapport.md (the report for people, in French), ci-scan.sarif
+// and the files that the stages give (sbom.cdx.json).
 //
 // Exit code: 0 conforme, 1 bloqué, 2 the scan itself failed.
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
-import { annotations, text } from './report.mjs'
+import { annotations, markdown, text } from './report.mjs'
 import { run } from './run.mjs'
 
 async function main() {
@@ -31,6 +31,9 @@ async function main() {
   if (values.out) {
     await mkdir(values.out, { recursive: true })
     await writeFile(path.join(values.out, 'ci-scan.sarif'), JSON.stringify(result.sarif, null, 1))
+    // On GitHub, the name of the repository that calls the scan.
+    const repoName = process.env.GITHUB_REPOSITORY || path.basename(result.repo)
+    await writeFile(path.join(values.out, 'rapport.md'), markdown(result, { name: repoName, date: new Date() }))
     // The files that the stages give, such as the SBOM.
     for (const { name, content } of result.outputs) {
       await writeFile(path.join(values.out, name), typeof content === 'string' ? content : JSON.stringify(content))

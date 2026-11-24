@@ -4,6 +4,8 @@
 // they always run.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { mkdtemp, readFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -25,6 +27,18 @@ test('clean: conforme', { skip }, async () => {
   assert.deepEqual(found.findings, [])
   assert.equal(found.verdict, 'conforme')
   assert.equal(found.files, 4)
+})
+
+test('clean: the command writes rapport.md next to the SARIF', { skip }, async () => {
+  const out = await mkdtemp(path.join(os.tmpdir(), 'ci-scan-out-'))
+  const cli = path.join(ROOT, 'runner', 'cli.mjs')
+  const env = { ...process.env, GITHUB_ACTIONS: '', GITHUB_REPOSITORY: '' }
+  const done = spawnSync(process.execPath, [cli, fixture('clean'), '--out', out], { encoding: 'utf8', env })
+  assert.equal(done.status, 0, done.stderr)
+  const report = await readFile(path.join(out, 'rapport.md'), 'utf8')
+  assert.match(report, /^# CI scan : clean$/m)
+  assert.match(report, /^\*\*Décision : conforme\*\*$/m)
+  JSON.parse(await readFile(path.join(out, 'ci-scan.sarif'), 'utf8'))
 })
 
 test('secret: bloqué by the false key', { skip }, async () => {

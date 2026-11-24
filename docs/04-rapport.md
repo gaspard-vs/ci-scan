@@ -2,26 +2,34 @@
 
 ## Ce que reçoit le responsable
 
-Une page, en français :
+Une page, en français : `rapport.md`.
 
-- **La décision** : conforme ou bloqué.
-- **Les technologies détectées**, et celles non couvertes.
-- **Le nombre de résultats** par gravité et par contrôle.
-- **Les points bloquants**, chacun avec le fichier et la correction attendue.
-- **Un conseil**, si le projet ne lance pas lui-même les contrôles rapides.
+| Partie | Contenu | État |
+| --- | --- | --- |
+| La décision | Conforme ou bloqué. | Construit |
+| Les technologies | Couvertes, couvertes par les contrôles communs seulement, non couvertes. | Construit |
+| Les résultats | Leur nombre, par contrôle et par gravité. | Construit |
+| Les points bloquants | Le fichier, la ligne, le contrôle, la gravité. | Construit |
+| La correction attendue | Pour chaque point bloquant. | À construire |
+| Signalé, pour information | Les autres résultats, même tableau. | Construit |
+| Les étapes | Le nombre de résultats, la date des données, les requêtes vers l'extérieur. | Construit |
+| Un conseil | Si le projet ne lance pas lui-même les contrôles rapides. | À construire |
 
-Sont joints, pour les développeurs et pour d'autres outils :
+Un tableau montre 200 lignes au plus. Le reste est compté, avec un renvoi au détail technique.
 
-- le détail technique (`ci-scan.sarif`) ;
+Sont joints, pour les développeurs, les agents et d'autres outils :
+
+- le détail technique (`ci-scan.sarif`, au format standard SARIF) ;
 - l'inventaire des composants (`sbom.cdx.json`, le SBOM).
 
-Sur GitHub, ces deux fichiers restent avec le résultat du scan, 90 jours au plus.
+Sur GitHub, ces trois fichiers restent avec le résultat du scan, 90 jours au plus.
 
 ## Où le lire
 
 | Ordre | Où | Statut |
 | --- | --- | --- |
-| 1 | Sur GitHub, avec le résultat de chaque scan | La cible. |
+| 1 | Sur GitHub : la page du scan montre `rapport.md`. Bouton **Details** de la demande de fusion, puis **Summary**. | Construit. |
+| – | Sur le poste : `node runner/cli.mjs <dépôt> --out <dossier>` écrit `rapport.md` dans le dossier. | Construit. |
 | 2 | Sur GitLab | Éventuel. |
 | 3 | Sur le git du Valais, près des projets | Ensuite. |
 
