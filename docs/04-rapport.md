@@ -28,10 +28,16 @@ Sur GitHub, ces trois fichiers restent avec le résultat du scan, 90 jours au pl
 
 | Ordre | Où | Statut |
 | --- | --- | --- |
-| 1 | Sur GitHub : la page du scan montre `rapport.md`. Bouton **Details** de la demande de fusion, puis **Summary**. | Construit. |
+| 1 | Sur GitHub, la page du scan montre `rapport.md`. Voir ci-dessous. | Construit. |
 | – | Sur le poste : `node runner/cli.mjs <dépôt> --out <dossier>` écrit `rapport.md` dans le dossier. | Construit. |
 | 2 | Sur GitLab | Éventuel. |
 | 3 | Sur le git du Valais, près des projets | Ensuite. |
+
+### Sur GitHub, depuis la demande de fusion
+
+1. Dans le cadre des contrôles, cliquer le nom du contrôle : `ci-scan / ci-scan / scan (pull_request_target)`.
+2. Le journal du scan s'ouvre. À gauche, en haut, cliquer **Summary**.
+3. Descendre sous le cadre des artefacts. Le rapport commence par « CI scan : » et le nom du dépôt.
 
 ## La décision
 
