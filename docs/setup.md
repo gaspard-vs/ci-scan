@@ -90,7 +90,7 @@ Le scan démarre tout seul. Il apparaît en bas de la demande de fusion, sous le
 | Ce qui s'affiche | Sens |
 | --- | --- |
 | Coche verte | Conforme. |
-| Croix rouge | Bloqué. **Details** montre le fichier et la ligne en cause. |
+| Croix rouge | Bloqué. Le rapport donne le fichier et la ligne en cause. Pour le lire : [Rapport](04-rapport.html), « Où le lire ». |
 | Rien après une minute | L'appel n'est pas parti. Voir l'onglet **Actions** ; vérifier l'étape 1. |
 
 Noter le nom exact du contrôle. L'étape 4 en a besoin.
